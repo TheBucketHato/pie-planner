@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pie Planner</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div id="app">
+
+    <!-- ===== SIDEBAR ===== -->
+    <aside id="sidebar">
+      <div class="sidebar-top">
+        <div class="logo">
+          <span class="logo-icon">🥧</span>
+          <span class="logo-text">Pie Planner</span>
+        </div>
+        <button id="create-btn" class="create-btn">+ Create</button>
+      </div>
+
+      <div id="mini-cal"></div>
+
+      <div class="sidebar-categories">
+        <div class="categories-header">
+          <span>Categories</span>
+          <button id="manage-categories-btn" class="icon-btn" title="Manage categories">⚙</button>
+        </div>
+        <ul id="category-list"></ul>
+      </div>
+    </aside>
+
+    <!-- ===== MAIN ===== -->
+    <div id="main">
+      <header id="cal-header">
+        <div class="header-left">
+          <button id="today-btn" class="today-btn">Today</button>
+          <button id="prev-btn" class="nav-btn">&#8249;</button>
+          <button id="next-btn" class="nav-btn">&#8250;</button>
+          <h2 id="header-title"></h2>
+        </div>
+        <div class="header-right">
+          <div class="theme-toggle">
+            <input type="checkbox" id="dark-mode-toggle" aria-label="Toggle dark mode">
+            <label for="dark-mode-toggle" class="toggle" title="Toggle dark mode">🌙</label>
+          </div>
+          <div class="view-switcher">
+            <button class="view-btn" data-view="day">Day</button>
+            <button class="view-btn" data-view="week">Week</button>
+            <button class="view-btn" data-view="month">Month</button>
+            <button class="view-btn" data-view="analytics">Analytics</button>
+          </div>
+        </div>
+      </header>
+      <div id="cal-body"></div>
+    </div>
+  </div>
+
+  <!-- ===== EVENT MODAL ===== -->
+  <div id="event-modal" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-title">New Event</h3>
+        <button class="modal-close-btn">&#10005;</button>
+      </div>
+      <form id="event-form">
+        <div class="form-group">
+          <input type="text" id="event-title" placeholder="Add title" autocomplete="off" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="event-date" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Start time</label>
+            <input type="time" id="event-start" required>
+          </div>
+          <div class="form-group">
+            <label>End time</label>
+            <input type="time" id="event-end" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select id="event-category"></select>
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="event-desc" rows="3" placeholder="Add description..."></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="delete-event-btn" class="btn-danger hidden">Delete</button>
+          <div class="modal-footer-right">
+            <button type="button" class="btn-cancel modal-close-btn">Cancel</button>
+            <button type="submit" class="btn-primary">Save</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===== CATEGORY MODAL ===== -->
+  <div id="category-modal" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Manage Categories</h3>
+        <button class="modal-close-btn">&#10005;</button>
+      </div>
+      <div id="cat-modal-list"></div>
+      <form id="add-cat-form">
+        <div class="add-cat-row">
+          <input type="text" id="new-cat-name" placeholder="New category name" required autocomplete="off">
+          <input type="color" id="new-cat-color" value="#4285f4" title="Pick color">
+          <button type="submit" class="btn-primary">Add</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
