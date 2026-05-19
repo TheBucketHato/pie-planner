@@ -42,6 +42,31 @@ const ALL_CUSTOM_PROPS = [
 
 const PRESETS = [
   {
+    name: 'Clean',
+    colors: {
+      '--bg':             '#ffffff',
+      '--panel-bg':       '#f8f9fa',
+      '--modal-bg':       '#ffffff',
+      '--input-bg':       '#f1f3f4',
+      '--accent':         '#1a73e8',
+      '--other-month-bg': '#f1f3f4',
+      '--text':           '#202124',
+      '--text-dim':       '#5f6368',
+      '--muted':          '#80868b',
+      '--border':         '#dadce0',
+      '--card-hover':     '#f1f3f4',
+      '--muted-hover':    '#e8eaed',
+      '--faint':          '#f1f3f4',
+    },
+    categoryColors: {
+      'Work':     '#1a73e8',
+      'Social':   '#33b679',
+      'Meals':    '#f6bf26',
+      'Personal': '#a4bdfc',
+      'Health':   '#ff887c',
+    },
+  },
+  {
     name: 'Bakery',
     colors: {
       '--bg':             '#fdf6ee',
@@ -67,53 +92,53 @@ const PRESETS = [
     },
   },
   {
-    name: 'Starlight',
+    name: 'Blueberry',
     colors: {
-      '--bg':             '#0d1b2e',
-      '--panel-bg':       '#091422',
-      '--modal-bg':       '#0f2038',
-      '--input-bg':       '#122540',
-      '--accent':         '#5b9cf6',
-      '--other-month-bg': '#0a1620',
-      '--text':           '#c5ddf5',
-      '--text-dim':       '#7aa8d0',
-      '--muted':          '#4e7a9e',
-      '--border':         'rgba(120,160,210,0.18)',
-      '--card-hover':     'rgba(91,156,246,0.06)',
-      '--muted-hover':    'rgba(120,160,210,0.08)',
-      '--faint':          'rgba(120,160,210,0.07)',
+      '--bg':             '#eef2ff',
+      '--panel-bg':       '#e0e8ff',
+      '--modal-bg':       '#eef2ff',
+      '--input-bg':       '#e0e8ff',
+      '--accent':         '#4f72d4',
+      '--other-month-bg': '#d8e2ff',
+      '--text':           '#1a2560',
+      '--text-dim':       '#3d56a8',
+      '--muted':          '#6880c0',
+      '--border':         '#b8c8f0',
+      '--card-hover':     '#d8e2ff',
+      '--muted-hover':    '#ccd8f8',
+      '--faint':          '#ccd8f8',
     },
     categoryColors: {
-      'Work':     '#6090d8',
-      'Social':   '#58b8c8',
-      'Meals':    '#9080cc',
-      'Personal': '#68a8dc',
-      'Health':   '#c46888',
+      'Work':     '#6080d8',
+      'Social':   '#7ab0e8',
+      'Meals':    '#a0b8f0',
+      'Personal': '#8898e0',
+      'Health':   '#9878d0',
     },
   },
   {
-    name: 'Forest',
+    name: 'Key Lime',
     colors: {
-      '--bg':             '#0f1f15',
-      '--panel-bg':       '#0a1910',
-      '--modal-bg':       '#112218',
-      '--input-bg':       '#132a18',
-      '--accent':         '#4caf72',
-      '--other-month-bg': '#0c1a11',
-      '--text':           '#c0e6c8',
-      '--text-dim':       '#78b888',
-      '--muted':          '#527a5e',
-      '--border':         'rgba(100,180,120,0.18)',
-      '--card-hover':     'rgba(76,175,114,0.06)',
-      '--muted-hover':    'rgba(100,180,120,0.08)',
-      '--faint':          'rgba(100,180,120,0.07)',
+      '--bg':             '#f0faf0',
+      '--panel-bg':       '#e0f4e4',
+      '--modal-bg':       '#f0faf0',
+      '--input-bg':       '#e0f4e4',
+      '--accent':         '#3a9e58',
+      '--other-month-bg': '#d4eeda',
+      '--text':           '#0f3020',
+      '--text-dim':       '#2e6e42',
+      '--muted':          '#5a9868',
+      '--border':         '#a8d8b0',
+      '--card-hover':     '#d4eeda',
+      '--muted-hover':    '#c8e8d0',
+      '--faint':          '#c8e8d0',
     },
     categoryColors: {
-      'Work':     '#52986a',
-      'Social':   '#70b484',
-      'Meals':    '#90be58',
-      'Personal': '#58a898',
-      'Health':   '#a8be50',
+      'Work':     '#4aaa68',
+      'Social':   '#78c870',
+      'Meals':    '#a0cc58',
+      'Personal': '#60b898',
+      'Health':   '#88c840',
     },
   },
   {
@@ -139,6 +164,31 @@ const PRESETS = [
       'Meals':    '#e8a020',
       'Personal': '#d0a850',
       'Health':   '#c07028',
+    },
+  },
+  {
+    name: 'Apple',
+    colors: {
+      '--bg':             '#fff0f4',
+      '--panel-bg':       '#ffe4ec',
+      '--modal-bg':       '#fff0f4',
+      '--input-bg':       '#ffe4ec',
+      '--accent':         '#d44070',
+      '--other-month-bg': '#ffd8e4',
+      '--text':           '#5a0e28',
+      '--text-dim':       '#a03058',
+      '--muted':          '#c06080',
+      '--border':         '#f0b0c8',
+      '--card-hover':     '#ffd8e4',
+      '--muted-hover':    '#ffccd8',
+      '--faint':          '#ffccd8',
+    },
+    categoryColors: {
+      'Work':     '#d85888',
+      'Social':   '#e87898',
+      'Meals':    '#f0a0b8',
+      'Personal': '#e068a0',
+      'Health':   '#cc78b0',
     },
   },
 ];
@@ -295,10 +345,17 @@ let analyticsSpan        = 'week';   // day | week | month | custom
 let analyticsCustomStart = localStorage.getItem('pp-analytics-start') || '';
 let analyticsCustomEnd   = localStorage.getItem('pp-analytics-end')   || '';
 let editId               = null;
-let pieChart             = null;
+let pieCharts            = [];
+let analyticsTab         = 'events'; // 'events' | 'tasks'
+
+let tasks = load('pp-tasks', []).map(t => {
+  if (!t.status) t.status = t.done ? 'done' : 'todo';
+  return t;
+});
 
 function saveEvents()     { save('pp-events', events); }
 function saveCategories() { save('pp-categories', categories); }
+function saveTasks()      { save('pp-tasks', tasks); }
 function saveSavedColors() { save('pp-colors', savedColors); }
 
 // ===================================================
@@ -426,6 +483,7 @@ function headerTitle() {
       : `${SHORT_MONTHS[s.getMonth()]} ${s.getDate()} – ${SHORT_MONTHS[e.getMonth()]} ${e.getDate()}, ${s.getFullYear()}`;
     return label;
   }
+  if (view === 'tasks') return 'Tasks';
   if (view === 'analytics') {
     if (analyticsSpan === 'day')   return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
     if (analyticsSpan === 'month') return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
@@ -450,6 +508,7 @@ function headerTitle() {
 // ===================================================
 
 function navPrev() {
+  if (view === 'tasks') return;
   if (view === 'analytics' && analyticsSpan === 'custom') return;
   const d = new Date(anchor);
   if (view === 'month')     d.setMonth(d.getMonth() - 1);
@@ -463,6 +522,7 @@ function navPrev() {
 }
 
 function navNext() {
+  if (view === 'tasks') return;
   if (view === 'analytics' && analyticsSpan === 'custom') return;
   const d = new Date(anchor);
   if (view === 'month')     d.setMonth(d.getMonth() + 1);
@@ -500,6 +560,7 @@ function renderHeader() {
 
 function renderSidebar() {
   renderMiniCal();
+  renderTaskList();
   renderCatList();
 }
 
@@ -553,6 +614,97 @@ function renderMiniCal() {
   });
 }
 
+function taskCountdown(task) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const due   = fromDateStr(task.due);
+  const diff  = Math.round((due - today) / 86400000);
+  if (task.status === 'done') return { text: 'Done', cls: 'task-badge-done' };
+  if (diff < 0)   return { text: `${Math.abs(diff)}d overdue`, cls: 'task-badge-overdue' };
+  if (diff === 0) return { text: 'Today',              cls: 'task-badge-today' };
+  if (diff === 1) return { text: '1 day',              cls: 'task-badge-soon' };
+  if (diff <= 3)  return { text: `${diff} days`,       cls: 'task-badge-soon' };
+  if (diff <= 7)  return { text: `${diff} days`,       cls: 'task-badge-week' };
+  return              { text: `${diff} days`,           cls: 'task-badge-far' };
+}
+
+function renderTaskList() {
+  const ul = document.getElementById('task-list');
+  if (!tasks.length) {
+    ul.innerHTML = '<li class="task-empty">No tasks yet</li>';
+  } else {
+    ul.innerHTML = tasks.map(t => {
+      const { text, cls } = taskCountdown(t);
+      const icon = t.status === 'done' ? '✓' : t.status === 'in-progress' ? '–' : '';
+      return `<li class="task-item task-status-${t.status}" data-id="${t.id}">
+        <button class="task-check-btn task-check-${t.status}" data-id="${t.id}" title="Cycle status">${icon}</button>
+        <span class="task-title">${t.title}</span>
+        <span class="task-badge ${cls}">${text}</span>
+        <button class="task-delete-btn" data-id="${t.id}" title="Delete">×</button>
+      </li>`;
+    }).join('');
+
+    ul.querySelectorAll('.task-check-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const task = tasks.find(t => t.id === btn.dataset.id);
+        if (task) {
+          task.status = task.status === 'todo' ? 'in-progress' : task.status === 'in-progress' ? 'done' : 'todo';
+          saveTasks(); renderTaskList();
+          if (view === 'tasks') renderBody();
+        }
+      });
+    });
+
+    ul.querySelectorAll('.task-delete-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        tasks = tasks.filter(t => t.id !== btn.dataset.id);
+        saveTasks(); renderTaskList();
+      });
+    });
+  }
+}
+
+function showAddTaskForm() {
+  const existing = document.getElementById('task-add-row');
+  if (existing) { existing.remove(); return; }
+
+  const ul = document.getElementById('task-list');
+  const emptyMsg = ul.querySelector('.task-empty');
+  if (emptyMsg) emptyMsg.remove();
+
+  const li = document.createElement('li');
+  li.id = 'task-add-row';
+  li.className = 'task-add-row';
+  li.innerHTML = `
+    <input type="text" id="task-add-title" placeholder="Task name" autocomplete="off" maxlength="80">
+    <input type="date" id="task-add-due">
+    <button class="task-add-save" id="task-add-save-btn">Add</button>
+  `;
+  ul.appendChild(li);
+  document.getElementById('task-add-title').focus();
+
+  function commitTask() {
+    const title = document.getElementById('task-add-title').value.trim();
+    const due   = document.getElementById('task-add-due').value;
+    if (!title || !due) return;
+    tasks.push({ id: 'tk' + Date.now(), title, due, status: 'todo' });
+    saveTasks();
+    li.remove();
+    renderTaskList();
+  }
+
+  document.getElementById('task-add-save-btn').addEventListener('click', commitTask);
+  document.getElementById('task-add-title').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { document.getElementById('task-add-due').focus(); }
+    if (e.key === 'Escape') { li.remove(); renderTaskList(); }
+  });
+  document.getElementById('task-add-due').addEventListener('keydown', e => {
+    if (e.key === 'Enter') commitTask();
+    if (e.key === 'Escape') { li.remove(); renderTaskList(); }
+  });
+}
+
 function renderCatList() {
   const ul = document.getElementById('category-list');
   if (!categories.length) {
@@ -572,11 +724,12 @@ function renderCatList() {
 // ===================================================
 
 function renderBody() {
-  if (pieChart) { pieChart.destroy(); pieChart = null; }
+  pieCharts.forEach(c => c.destroy()); pieCharts = [];
   const body = document.getElementById('cal-body');
   if      (view === 'month')     renderMonth(body);
   else if (view === 'week')      renderWeek(body);
   else if (view === 'day')       renderDay(body);
+  else if (view === 'tasks')     renderTasksView(body);
   else if (view === 'analytics') renderAnalytics(body);
 }
 
@@ -1055,10 +1208,288 @@ function placeEvents(dayEvts) {
 }
 
 // ===================================================
+//  TASKS VIEW
+// ===================================================
+
+function renderTasksView(body) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const endOfWeek = new Date(today); endOfWeek.setDate(today.getDate() + (6 - today.getDay()));
+
+  const todayTasks  = [];
+  const weekTasks   = [];
+  const laterTasks  = [];
+  const doneTasks   = [];
+
+  for (const t of tasks) {
+    if (t.status === 'done') { doneTasks.push(t); continue; }
+    const due  = fromDateStr(t.due);
+    const diff = Math.round((due - today) / 86400000);
+    if (diff < 0 || diff === 0)                  todayTasks.push(t);
+    else if (due <= endOfWeek)                   weekTasks.push(t);
+    else                                         laterTasks.push(t);
+  }
+
+  function taskRowsHTML(list) {
+    if (!list.length) return '<div class="tv-empty">Nothing here yet</div>';
+    return list.map(t => {
+      const { text, cls } = taskCountdown(t);
+      const icon = t.status === 'done' ? '✓' : t.status === 'in-progress' ? '–' : '';
+      return `<div class="tv-task-item task-status-${t.status}" data-id="${t.id}">
+        <button class="task-check-btn task-check-${t.status} tv-check" data-id="${t.id}" title="Cycle status">${icon}</button>
+        <div class="tv-task-body">
+          <span class="tv-task-title">${t.title}</span>
+          <span class="tv-task-due">Due ${formatDueDate(t.due)}</span>
+        </div>
+        <span class="task-badge ${cls}">${text}</span>
+        <button class="task-delete-btn tv-del" data-id="${t.id}" title="Delete">×</button>
+      </div>`;
+    }).join('');
+  }
+
+  const doneHTML = doneTasks.length
+    ? `<details class="tv-done-details">
+        <summary class="tv-done-summary">${doneTasks.length} completed</summary>
+        <div class="tv-section-body">${taskRowsHTML(doneTasks)}</div>
+      </details>`
+    : '';
+
+  body.innerHTML = `
+    <div class="tasks-view">
+      <div class="tv-columns">
+        <div class="tv-col">
+          <div class="tv-col-header tv-header-today">
+            <span class="tv-col-title">Today</span>
+            <span class="tv-col-count">${todayTasks.length}</span>
+          </div>
+          <div class="tv-section-body">${taskRowsHTML(todayTasks)}</div>
+        </div>
+        <div class="tv-col">
+          <div class="tv-col-header tv-header-week">
+            <span class="tv-col-title">This Week</span>
+            <span class="tv-col-count">${weekTasks.length}</span>
+          </div>
+          <div class="tv-section-body">${taskRowsHTML(weekTasks)}</div>
+        </div>
+        <div class="tv-col">
+          <div class="tv-col-header tv-header-later">
+            <span class="tv-col-title">Down the Road</span>
+            <span class="tv-col-count">${laterTasks.length}</span>
+          </div>
+          <div class="tv-section-body">${taskRowsHTML(laterTasks)}</div>
+        </div>
+      </div>
+      ${doneHTML}
+      <button class="tv-add-btn" id="tv-add-task-btn">+ Add Task</button>
+    </div>`;
+
+  body.querySelectorAll('.tv-check').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const task = tasks.find(t => t.id === btn.dataset.id);
+      if (task) {
+        task.status = task.status === 'todo' ? 'in-progress' : task.status === 'in-progress' ? 'done' : 'todo';
+        saveTasks(); renderTaskList(); renderBody();
+      }
+    });
+  });
+
+  body.querySelectorAll('.tv-del').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      tasks = tasks.filter(t => t.id !== btn.dataset.id);
+      saveTasks(); renderTaskList(); renderBody();
+    });
+  });
+
+  document.getElementById('tv-add-task-btn').addEventListener('click', () => {
+    const btn = document.getElementById('tv-add-task-btn');
+    btn.replaceWith(buildTvAddForm(() => renderBody()));
+    document.getElementById('tv-new-title').focus();
+  });
+}
+
+function buildTvAddForm(onDone) {
+  const today = new Date();
+  const form = document.createElement('div');
+  form.className = 'tv-inline-form';
+  form.innerHTML = `
+    <input type="text" id="tv-new-title" class="tv-new-title" placeholder="Task name" maxlength="80" autocomplete="off">
+    <div class="tv-form-row">
+      <label class="tv-form-label">Due date</label>
+      <input type="date" id="tv-new-due" class="tv-new-due" min="${today.toLocaleDateString('sv')}">
+      <div class="tv-form-actions">
+        <button class="tv-form-cancel">Cancel</button>
+        <button class="tv-form-save">Add Task</button>
+      </div>
+    </div>`;
+
+  function commit() {
+    const title = form.querySelector('#tv-new-title').value.trim();
+    const due   = form.querySelector('#tv-new-due').value;
+    if (!title || !due) {
+      if (!title) form.querySelector('#tv-new-title').focus();
+      else        form.querySelector('#tv-new-due').focus();
+      return;
+    }
+    tasks.push({ id: 'tk' + Date.now(), title, due, status: 'todo' });
+    saveTasks();
+    renderTaskList();
+    onDone();
+  }
+
+  form.querySelector('.tv-form-save').addEventListener('click', commit);
+  form.querySelector('.tv-form-cancel').addEventListener('click', onDone);
+  form.querySelector('#tv-new-title').addEventListener('keydown', e => {
+    if (e.key === 'Enter')  form.querySelector('#tv-new-due').focus();
+    if (e.key === 'Escape') onDone();
+  });
+  form.querySelector('#tv-new-due').addEventListener('keydown', e => {
+    if (e.key === 'Enter')  commit();
+    if (e.key === 'Escape') onDone();
+  });
+
+  return form;
+}
+
+function formatDueDate(dateStr) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const due   = fromDateStr(dateStr);
+  const diff  = Math.round((due - today) / 86400000);
+  if (diff === 0)  return 'today';
+  if (diff === 1)  return 'tomorrow';
+  if (diff === -1) return 'yesterday';
+  if (diff < 0)   return `${Math.abs(diff)} days ago`;
+  return `${SHORT_MONTHS[due.getMonth()]} ${due.getDate()}${due.getFullYear() !== today.getFullYear() ? ', ' + due.getFullYear() : ''}`;
+}
+
+// ===================================================
 //  ANALYTICS VIEW
 // ===================================================
 
+function makeTaskPieData(taskList) {
+  let done = 0, inProgress = 0, todo = 0;
+  for (const t of taskList) {
+    if      (t.status === 'done')        done++;
+    else if (t.status === 'in-progress') inProgress++;
+    else                                 todo++;
+  }
+  return { done, inProgress, todo, total: taskList.length };
+}
+
+function renderAnalyticsTasks(body) {
+  const today    = new Date(); today.setHours(0, 0, 0, 0);
+  const sunStart = weekStart(today);
+  const sunEnd   = addDays(sunStart, 6);
+
+  const todayTasks = tasks.filter(t => {
+    const due  = fromDateStr(t.due);
+    const diff = Math.round((due - today) / 86400000);
+    return diff <= 0;
+  });
+
+  const weekTasks = tasks.filter(t => {
+    const due = fromDateStr(t.due);
+    return due >= sunStart && due <= sunEnd;
+  });
+
+  function buildChart(canvasId, { done, inProgress, todo, total }) {
+    if (total === 0) return;
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    pieCharts.push(new Chart(ctx, {
+      type: 'pie',
+      data: {
+        labels: ['Complete', 'In Progress', 'Not Started'],
+        datasets: [{
+          data: [done, inProgress, todo],
+          backgroundColor: ['#4caf92', '#f6a821', '#c0c8d4'],
+          borderColor: 'transparent',
+          borderWidth: 0,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ${ctx.label}: ${ctx.parsed} task${ctx.parsed !== 1 ? 's' : ''} (${total ? ((ctx.parsed/total)*100).toFixed(0) : 0}%)`,
+            },
+          },
+        },
+      },
+    }));
+  }
+
+  function legendHTML({ done, inProgress, todo, total }) {
+    const items = [
+      { label: 'Complete',    count: done,       color: '#4caf92' },
+      { label: 'In Progress', count: inProgress, color: '#f6a821' },
+      { label: 'Not Started', count: todo,        color: '#c0c8d4' },
+    ];
+    return items.filter(i => i.count > 0).map(i => `
+      <div class="legend-item">
+        <span class="legend-swatch" style="background:${i.color}"></span>
+        <span class="legend-name">${i.label}</span>
+        <span class="legend-h">${i.count}</span>
+        <span class="legend-pct">${total ? ((i.count/total)*100).toFixed(0) : 0}%</span>
+      </div>`).join('');
+  }
+
+  function panelHTML(title, d, canvasId) {
+    if (d.total === 0) return `
+      <div class="at-panel">
+        <div class="at-panel-title">${title}</div>
+        <div class="analytics-empty" style="padding:24px 0">
+          <div class="analytics-empty-icon" style="font-size:40px">✓</div>
+          <p>No tasks due</p>
+        </div>
+      </div>`;
+    return `
+      <div class="at-panel">
+        <div class="at-panel-title">${title}</div>
+        <div class="at-panel-body">
+          <div class="at-chart-wrap"><canvas id="${canvasId}"></canvas></div>
+          <div class="analytics-legend">
+            <div class="legend-total">${d.total} task${d.total !== 1 ? 's' : ''}</div>
+            ${legendHTML(d)}
+          </div>
+        </div>
+      </div>`;
+  }
+
+  const todayData = makeTaskPieData(todayTasks);
+  const weekData  = makeTaskPieData(weekTasks);
+
+  body.innerHTML = `<div class="analytics-view">
+    ${analyticsTabBar()}
+    <div class="at-panels">
+      ${panelHTML('Today', todayData, 'at-canvas-today')}
+      ${panelHTML('This Week', weekData, 'at-canvas-week')}
+    </div>
+  </div>`;
+
+  wireAnalyticsTabs(body);
+  if (todayData.total > 0) buildChart('at-canvas-today', todayData);
+  if (weekData.total  > 0) buildChart('at-canvas-week',  weekData);
+}
+
+function analyticsTabBar() {
+  return `<div class="analytics-tab-row">
+    <button class="analytics-tab-btn${analyticsTab === 'events' ? ' active' : ''}" data-tab="events">Events</button>
+    <button class="analytics-tab-btn${analyticsTab === 'tasks'  ? ' active' : ''}" data-tab="tasks">Tasks</button>
+  </div>`;
+}
+
+function wireAnalyticsTabs(body) {
+  body.querySelectorAll('.analytics-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => { analyticsTab = btn.dataset.tab; renderBody(); });
+  });
+}
+
 function renderAnalytics(body) {
+  if (analyticsTab === 'tasks') { renderAnalyticsTasks(body); return; }
+
   // Determine date range
   let startStr, endStr;
   if (analyticsSpan === 'day') {
@@ -1132,6 +1563,7 @@ function renderAnalytics(body) {
 
   if (showEmpty) {
     body.innerHTML = `<div class="analytics-view">
+      ${analyticsTabBar()}
       ${rangeBtns}
       <div class="analytics-empty">
         <div class="analytics-empty-icon">📊</div>
@@ -1151,6 +1583,7 @@ function renderAnalytics(body) {
       </div>`).join('');
 
     body.innerHTML = `<div class="analytics-view">
+      ${analyticsTabBar()}
       ${rangeBtns}
       <div class="analytics-content">
         <div class="chart-wrap"><canvas id="pie-canvas"></canvas></div>
@@ -1162,7 +1595,7 @@ function renderAnalytics(body) {
     </div>`;
 
     const ctx = document.getElementById('pie-canvas').getContext('2d');
-    pieChart = new Chart(ctx, {
+    pieCharts.push(new Chart(ctx, {
       type: 'pie',
       data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: '#fff', borderWidth: 2 }] },
       options: {
@@ -1180,8 +1613,10 @@ function renderAnalytics(body) {
           },
         },
       },
-    });
+    }));
   }
+
+  wireAnalyticsTabs(body);
 
   // Range buttons
   body.querySelectorAll('.range-btn').forEach(btn => {
@@ -1501,11 +1936,14 @@ function initWelcome() {
   const nameDisplay = document.getElementById('welcome-name-display');
   const hint        = document.getElementById('welcome-hint');
 
+  nameDisplay.innerHTML = ', <span class="welcome-blank">______</span>';
   input.focus();
 
   input.addEventListener('input', () => {
     const val = input.value;
-    nameDisplay.textContent = val ? ', ' + val : '';
+    nameDisplay.innerHTML = val
+      ? ', ' + val
+      : ', <span class="welcome-blank">______</span>';
     hint.textContent = val.trim() ? 'press Enter to continue' : "what's your name?";
   });
 
@@ -1540,6 +1978,9 @@ function init() {
 
   // Create button
   document.getElementById('create-btn').addEventListener('click', () => openEventModal(null));
+
+  // Tasks
+  document.getElementById('add-task-btn').addEventListener('click', showAddTaskForm);
 
   // Manage categories
   document.getElementById('manage-categories-btn').addEventListener('click', openCatModal);
