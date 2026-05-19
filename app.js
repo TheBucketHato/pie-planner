@@ -21,6 +21,202 @@ function saveTheme(t) { localStorage.setItem('pp-theme', t); }
 function applyTheme(t) {
   if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
   else document.documentElement.removeAttribute('data-theme');
+  applyCustomColors(loadCustomColors());
+}
+
+// CUSTOM COLORS
+const COLOR_VARS = [
+  { label: 'Background',       prop: '--bg' },
+  { label: 'Sidebar',          prop: '--panel-bg' },
+  { label: 'Today & accent',   prop: '--accent' },
+  { label: 'Other-month days', prop: '--other-month-bg' },
+  { label: 'Text',             prop: '--text' },
+];
+
+const ALL_CUSTOM_PROPS = [
+  '--bg', '--panel-bg', '--modal-bg', '--input-bg',
+  '--accent', '--other-month-bg',
+  '--text', '--text-dim', '--muted',
+  '--border', '--card-hover', '--muted-hover', '--faint',
+];
+
+const PRESETS = [
+  {
+    name: 'Bakery',
+    colors: {
+      '--bg':             '#fdf6ee',
+      '--panel-bg':       '#f5e8d6',
+      '--modal-bg':       '#fdf6ee',
+      '--input-bg':       '#f5e8d6',
+      '--accent':         '#8b5e3c',
+      '--other-month-bg': '#ece0ce',
+      '--text':           '#3b2316',
+      '--text-dim':       '#6b4428',
+      '--muted':          '#a07050',
+      '--border':         '#d9c4a8',
+      '--card-hover':     '#f0e4d4',
+      '--muted-hover':    '#ece0ce',
+      '--faint':          '#ece0ce',
+    },
+  },
+  {
+    name: 'Starlight',
+    colors: {
+      '--bg':             '#0d1b2e',
+      '--panel-bg':       '#091422',
+      '--modal-bg':       '#0f2038',
+      '--input-bg':       '#122540',
+      '--accent':         '#5b9cf6',
+      '--other-month-bg': '#0a1620',
+      '--text':           '#c5ddf5',
+      '--text-dim':       '#7aa8d0',
+      '--muted':          '#4e7a9e',
+      '--border':         'rgba(120,160,210,0.18)',
+      '--card-hover':     'rgba(91,156,246,0.06)',
+      '--muted-hover':    'rgba(120,160,210,0.08)',
+      '--faint':          'rgba(120,160,210,0.07)',
+    },
+  },
+  {
+    name: 'Forest',
+    colors: {
+      '--bg':             '#0f1f15',
+      '--panel-bg':       '#0a1910',
+      '--modal-bg':       '#112218',
+      '--input-bg':       '#132a18',
+      '--accent':         '#4caf72',
+      '--other-month-bg': '#0c1a11',
+      '--text':           '#c0e6c8',
+      '--text-dim':       '#78b888',
+      '--muted':          '#527a5e',
+      '--border':         'rgba(100,180,120,0.18)',
+      '--card-hover':     'rgba(76,175,114,0.06)',
+      '--muted-hover':    'rgba(100,180,120,0.08)',
+      '--faint':          'rgba(100,180,120,0.07)',
+    },
+  },
+  {
+    name: 'Sunflower',
+    colors: {
+      '--bg':             '#fffce8',
+      '--panel-bg':       '#fff8d0',
+      '--modal-bg':       '#fffce8',
+      '--input-bg':       '#fff8d0',
+      '--accent':         '#d48800',
+      '--other-month-bg': '#fef3b8',
+      '--text':           '#3d2e00',
+      '--text-dim':       '#6b5000',
+      '--muted':          '#9a7800',
+      '--border':         '#e0c84e',
+      '--card-hover':     '#fff8c0',
+      '--muted-hover':    '#fff3a8',
+      '--faint':          '#fff3a8',
+    },
+  },
+];
+
+function loadCustomColors() { return load('pp-custom-colors', {}); }
+function saveCustomColors(c) { save('pp-custom-colors', c); }
+
+function applyCustomColors(colors) {
+  for (const prop of ALL_CUSTOM_PROPS) {
+    if (colors[prop]) document.documentElement.style.setProperty(prop, colors[prop]);
+    else document.documentElement.style.removeProperty(prop);
+  }
+}
+
+function cssVarValue(prop, colors) {
+  if (colors[prop]) return colors[prop];
+  const val = getComputedStyle(document.documentElement).getPropertyValue(prop).trim();
+  return /^#[0-9a-f]{3,8}$/i.test(val) ? val : '#ffffff';
+}
+
+function buildCustomizerHTML(colors) {
+  const presetBtns = PRESETS.map(p =>
+    `<button class="color-preset-btn" data-preset="${p.name}" title="${p.name}">
+      <span class="color-preset-swatch"
+        style="background:linear-gradient(135deg,${p.colors['--bg']} 50%,${p.colors['--accent']} 50%)">
+      </span>
+      ${p.name}
+    </button>`
+  ).join('');
+
+  const pickerRows = COLOR_VARS.map(({ label, prop }) =>
+    `<div class="color-customizer-row">
+      <span>${label}</span>
+      <input type="color" data-prop="${prop}" value="${cssVarValue(prop, colors)}">
+    </div>`
+  ).join('');
+
+  return `
+    <div class="color-customizer-title">Presets</div>
+    <div class="color-preset-row">${presetBtns}</div>
+    <div class="color-customizer-divider"></div>
+    <div class="color-customizer-title">Custom</div>
+    ${pickerRows}
+    <button class="color-customizer-reset">Reset to defaults</button>`;
+}
+
+function wireCustomizerEvents(popup) {
+  popup.querySelectorAll('.color-preset-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const preset = PRESETS.find(p => p.name === btn.dataset.preset);
+      if (!preset) return;
+      saveCustomColors(preset.colors);
+      applyCustomColors(preset.colors);
+      popup.innerHTML = buildCustomizerHTML(preset.colors);
+      wireCustomizerEvents(popup);
+    });
+  });
+
+  popup.querySelectorAll('input[type="color"]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const colors = loadCustomColors();
+      colors[inp.dataset.prop] = inp.value;
+      saveCustomColors(colors);
+      applyCustomColors(colors);
+    });
+  });
+
+  popup.querySelector('.color-customizer-reset').addEventListener('click', e => {
+    e.stopPropagation();
+    saveCustomColors({});
+    applyCustomColors({});
+    popup.innerHTML = buildCustomizerHTML({});
+    wireCustomizerEvents(popup);
+  });
+}
+
+function showColorCustomizer(anchorEl) {
+  const existing = document.getElementById('color-customizer-popup');
+  if (existing) {
+    existing.remove();
+    document.removeEventListener('click', onOutsideCustomizerClick);
+    return;
+  }
+
+  const colors = loadCustomColors();
+  const popup = document.createElement('div');
+  popup.className = 'color-customizer-popup';
+  popup.id = 'color-customizer-popup';
+  popup.innerHTML = buildCustomizerHTML(colors);
+
+  const rect = anchorEl.getBoundingClientRect();
+  popup.style.top   = (rect.bottom + 6) + 'px';
+  popup.style.right = (window.innerWidth - rect.right) + 'px';
+  document.body.appendChild(popup);
+
+  wireCustomizerEvents(popup);
+  setTimeout(() => document.addEventListener('click', onOutsideCustomizerClick), 0);
+}
+
+function onOutsideCustomizerClick(e) {
+  const popup = document.getElementById('color-customizer-popup');
+  if (popup && !popup.contains(e.target) && e.target.id !== 'color-customize-btn') {
+    popup.remove();
+    document.removeEventListener('click', onOutsideCustomizerClick);
+  }
 }
 
 // ===================================================
@@ -95,6 +291,64 @@ function sameDay(a, b) {
   return a.getFullYear() === b.getFullYear() &&
          a.getMonth()    === b.getMonth()    &&
          a.getDate()     === b.getDate();
+}
+
+// ===================================================
+//  RECURRENCE HELPERS
+// ===================================================
+
+function dateDiffDays(aStr, bStr) {
+  return Math.round((fromDateStr(bStr) - fromDateStr(aStr)) / 86400000);
+}
+
+function isRecurrenceInstance(evt, dateStr) {
+  if (dateStr < evt.date) return false;
+  const rec = evt.recurrence;
+  if (!rec || rec.type === 'none') return evt.date === dateStr;
+  if (rec.endDate && dateStr > rec.endDate) return false;
+  const interval = Math.max(1, rec.interval || 1);
+  if (rec.type === 'daily') return dateDiffDays(evt.date, dateStr) % interval === 0;
+  if (rec.type === 'weekly') return dateDiffDays(evt.date, dateStr) % (7 * interval) === 0;
+  if (rec.type === 'monthly') {
+    const base = fromDateStr(evt.date), target = fromDateStr(dateStr);
+    if (target.getDate() !== base.getDate()) return false;
+    const md = (target.getFullYear() - base.getFullYear()) * 12 + (target.getMonth() - base.getMonth());
+    return md >= 0 && md % interval === 0;
+  }
+  if (rec.type === 'yearly') {
+    const base = fromDateStr(evt.date), target = fromDateStr(dateStr);
+    if (target.getMonth() !== base.getMonth() || target.getDate() !== base.getDate()) return false;
+    const yd = target.getFullYear() - base.getFullYear();
+    return yd >= 0 && yd % interval === 0;
+  }
+  return false;
+}
+
+function getEventsForDate(dateStr) {
+  return events.flatMap(evt => {
+    const rec = evt.recurrence;
+    if (!rec || rec.type === 'none') return evt.date === dateStr ? [evt] : [];
+    return isRecurrenceInstance(evt, dateStr) ? [{ ...evt, date: dateStr }] : [];
+  });
+}
+
+function getEventsInRange(startStr, endStr) {
+  const result = [];
+  const cur = fromDateStr(startStr);
+  const end = fromDateStr(endStr);
+  while (cur <= end) {
+    const dateStr = toDateStr(new Date(cur));
+    for (const evt of events) {
+      const rec = evt.recurrence;
+      if (!rec || rec.type === 'none') {
+        if (evt.date === dateStr) result.push(evt);
+      } else if (isRecurrenceInstance(evt, dateStr)) {
+        result.push({ ...evt, date: dateStr });
+      }
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  return result;
 }
 
 const MONTHS = ['January','February','March','April','May','June',
@@ -287,7 +541,7 @@ function renderMonth(body) {
   for (let day = 1; day <= daysInMonth; day++) {
     const date    = new Date(year, month, day);
     const dateStr = toDateStr(date);
-    const dayEvts = events.filter(e => e.date === dateStr)
+    const dayEvts = getEventsForDate(dateStr)
                           .sort((a, b) => toMins(a.startTime) - toMins(b.startTime));
     const isToday = sameDay(date, today);
 
@@ -302,9 +556,10 @@ function renderMonth(body) {
       const cat   = categories.find(c => c.id === evt.categoryId);
       const color = cat ? cat.color : '#9e9e9e';
       const tc    = contrastColor(color);
+      const recBadge = (evt.recurrence?.type && evt.recurrence.type !== 'none') ? '<span class="rec-icon">↻</span>' : '';
       html += `<div class="month-event" data-id="${evt.id}" style="background:${color};color:${tc}">
         <span class="month-event-time">${fmtTime(evt.startTime)}</span>
-        <span>${evt.title}</span>
+        <span>${evt.title}${recBadge}</span>
       </div>`;
     }
     if (extra > 0) html += `<div class="month-more">+${extra} more</div>`;
@@ -393,7 +648,7 @@ function buildTimeGrid(body, cols) {
 
   for (const d of cols) {
     const dateStr  = toDateStr(d);
-    const dayEvts  = events.filter(e => e.date === dateStr);
+    const dayEvts  = getEventsForDate(dateStr);
     const placed   = placeEvents(dayEvts);
     const isToday  = sameDay(d, today);
 
@@ -417,9 +672,10 @@ function buildTimeGrid(body, cols) {
       const cat   = categories.find(c => c.id === evt.categoryId);
       const color = cat ? cat.color : '#9e9e9e';
       const tc    = contrastColor(color);
+      const recBadge2 = (evt.recurrence?.type && evt.recurrence.type !== 'none') ? ' <span class="rec-icon">↻</span>' : '';
       html += `<div class="time-event" data-id="${evt.id}"
         style="top:${top}px;height:${height}px;left:calc(${left}% + 2px);width:calc(${width}% - 4px);background:${color};color:${tc}">
-        <div class="time-event-title">${evt.title}</div>
+        <div class="time-event-title">${evt.title}${recBadge2}</div>
         ${height > 30 ? `<div class="time-event-time">${fmtTime(evt.startTime)} – ${fmtTime(evt.endTime)}</div>` : ''}
       </div>`;
     }
@@ -541,7 +797,7 @@ function renderAnalytics(body) {
 
   const startStr = toDateStr(start);
   const endStr   = toDateStr(end);
-  const inRange  = events.filter(e => e.date >= startStr && e.date <= endStr);
+  const inRange  = getEventsInRange(startStr, endStr);
 
   // Aggregate hours per category
   const catHours = {};
@@ -672,6 +928,13 @@ function openEventModal(evt, defaults = {}) {
       `<option value="${c.id}" ${evt?.categoryId === c.id ? 'selected' : ''}>${c.name}</option>`
     ).join('');
 
+  // Recurrence fields
+  const rec = evt?.recurrence || { type: 'none', interval: 1, endDate: '' };
+  document.getElementById('event-recurrence-type').value = rec.type || 'none';
+  document.getElementById('event-recurrence-interval').value = rec.interval || 1;
+  document.getElementById('event-recurrence-end').value = rec.endDate || '';
+  updateRecurrenceUI(rec.type || 'none');
+
   document.getElementById('event-modal').classList.remove('hidden');
   document.getElementById('event-title').focus();
 }
@@ -696,7 +959,12 @@ function saveEvent() {
     return;
   }
 
-  const record = { title, date, startTime: start, endTime: end, categoryId: catId, description: desc };
+  const recType     = document.getElementById('event-recurrence-type').value;
+  const recInterval = Math.max(1, parseInt(document.getElementById('event-recurrence-interval').value) || 1);
+  const recEnd      = document.getElementById('event-recurrence-end').value;
+  const recurrence  = { type: recType, interval: recInterval, endDate: recEnd };
+
+  const record = { title, date, startTime: start, endTime: end, categoryId: catId, description: desc, recurrence };
 
   if (editId) {
     const idx = events.findIndex(e => e.id === editId);
@@ -870,6 +1138,18 @@ function addCategory() {
 }
 
 // ===================================================
+//  RECURRENCE UI
+// ===================================================
+
+function updateRecurrenceUI(type) {
+  const opts      = document.getElementById('recurrence-options');
+  const unitLabel = document.getElementById('recurrence-unit-label');
+  opts.classList.toggle('hidden', type === 'none');
+  const units = { daily: 'days', weekly: 'weeks', monthly: 'months', yearly: 'years' };
+  unitLabel.textContent = units[type] || 'days';
+}
+
+// ===================================================
 //  UTILITIES
 // ===================================================
 
@@ -911,6 +1191,11 @@ function init() {
     saveEvent();
   });
 
+  // Recurrence type change
+  document.getElementById('event-recurrence-type').addEventListener('change', e => {
+    updateRecurrenceUI(e.target.value);
+  });
+
   // Auto-advance end time when start changes
   document.getElementById('event-start').addEventListener('change', e => {
     const endEl = document.getElementById('event-end');
@@ -949,6 +1234,7 @@ function init() {
   const themeToggle = document.getElementById('dark-mode-toggle');
   const curTheme = loadTheme();
   applyTheme(curTheme);
+  applyCustomColors(loadCustomColors());
   if (themeToggle) {
     themeToggle.checked = curTheme === 'dark';
     themeToggle.addEventListener('change', e => {
@@ -956,6 +1242,12 @@ function init() {
       applyTheme(t); saveTheme(t);
     });
   }
+
+  // Color customizer
+  document.getElementById('color-customize-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    showColorCustomizer(e.currentTarget);
+  });
 
   render();
 }

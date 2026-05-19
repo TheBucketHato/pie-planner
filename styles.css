@@ -2,6 +2,7 @@
    RESET & BASE
    =================================================== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+.hidden { display: none !important; }
 
 :root {
   --bg: #fff;
@@ -16,6 +17,7 @@
   --muted-hover: #f1f3f4;
   --faint: #f1f3f4;
   --accent: #1a73e8;
+  --other-month-bg: #f1f3f4;
 }
 
 [data-theme="dark"] {
@@ -31,6 +33,7 @@
   --muted-hover: rgba(255,255,255,0.05);
   --faint: rgba(255,255,255,0.05);
   --accent: #3aa0ff;
+  --other-month-bg: #0d1822;
 }
 
 body {
@@ -345,7 +348,7 @@ input, select, textarea { font-family: inherit; }
 }
 .month-cell:nth-child(7n) { border-right: none; }
 .month-cell:hover { background: var(--card-hover); }
-.month-cell.other-month { background: var(--muted-hover); opacity: 0.7; }
+.month-cell.other-month { background: var(--other-month-bg); opacity: 0.7; }
 .month-cell.other-month:hover { background: var(--card-hover); opacity: 1; }
 .month-cell.other-month .month-day-num { color: var(--muted); }
 
@@ -979,6 +982,29 @@ input, select, textarea { font-family: inherit; }
   outline: none;
 }
 .add-cat-row input[type="text"]:focus { border-color: var(--accent); }
+/* Recurrence UI */
+.recurrence-options { margin-bottom: 14px; }
+.recurrence-interval-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.recurrence-label { font-size: 14px; color: var(--text-dim); }
+.recurrence-interval-input {
+  width: 64px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--input-bg);
+  outline: none;
+  text-align: center;
+}
+.recurrence-interval-input:focus { border-color: var(--accent); }
+.rec-icon { opacity: 0.75; font-size: 10px; margin-left: 2px; }
+
 .add-cat-row input[type="color"] {
   width: 40px;
   height: 36px;
@@ -988,3 +1014,100 @@ input, select, textarea { font-family: inherit; }
   padding: 2px;
   background: none;
 }
+
+/* ===================================================
+   COLOR CUSTOMIZER POPUP
+   =================================================== */
+.color-customizer-popup {
+  position: fixed;
+  z-index: 2000;
+  background: var(--modal-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.22);
+  min-width: 210px;
+}
+
+.color-customizer-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 8px;
+}
+
+.color-customizer-divider {
+  border-top: 1px solid var(--border);
+  margin: 12px 0 10px;
+}
+
+.color-preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.color-preset-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 5px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--panel-bg);
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text);
+  font-family: inherit;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.color-preset-btn:hover {
+  border-color: var(--muted);
+  box-shadow: 0 1px 5px rgba(0,0,0,0.12);
+}
+
+.color-preset-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.12);
+  flex-shrink: 0;
+}
+
+.color-customizer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 0;
+  font-size: 13px;
+  color: var(--text);
+  gap: 16px;
+}
+
+.color-customizer-row input[type="color"] {
+  width: 32px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 1px;
+  background: none;
+  flex-shrink: 0;
+}
+
+.color-customizer-reset {
+  margin-top: 10px;
+  width: 100%;
+  padding: 6px;
+  font-size: 12px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+}
+.color-customizer-reset:hover { background: var(--muted-hover); }
