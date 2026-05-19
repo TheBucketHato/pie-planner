@@ -4,10 +4,32 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pie Planner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script>
+    (function () {
+      var n = localStorage.getItem('pp-user-name');
+      var t = localStorage.getItem('pp-theme');
+      if (n) document.documentElement.classList.add('has-user');
+      if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    })();
+  </script>
 </head>
 <body>
+
+  <!-- ===== WELCOME SCREEN ===== -->
+  <div id="welcome-screen">
+    <div class="welcome-content">
+      <div class="welcome-heading">
+        Welcome<span id="welcome-name-display"></span><span class="welcome-cursor"></span>
+      </div>
+      <p class="welcome-hint" id="welcome-hint">what's your name?</p>
+    </div>
+    <input type="text" id="welcome-input" maxlength="40" autocomplete="off" spellcheck="false" aria-label="Your name">
+  </div>
+
   <div id="app">
 
     <!-- ===== SIDEBAR ===== -->

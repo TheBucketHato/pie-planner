@@ -58,6 +58,13 @@ const PRESETS = [
       '--muted-hover':    '#ece0ce',
       '--faint':          '#ece0ce',
     },
+    categoryColors: {
+      'Work':     '#9e6e4a',
+      'Social':   '#b88c64',
+      'Meals':    '#c87858',
+      'Personal': '#d8b48a',
+      'Health':   '#b06458',
+    },
   },
   {
     name: 'Starlight',
@@ -75,6 +82,13 @@ const PRESETS = [
       '--card-hover':     'rgba(91,156,246,0.06)',
       '--muted-hover':    'rgba(120,160,210,0.08)',
       '--faint':          'rgba(120,160,210,0.07)',
+    },
+    categoryColors: {
+      'Work':     '#6090d8',
+      'Social':   '#58b8c8',
+      'Meals':    '#9080cc',
+      'Personal': '#68a8dc',
+      'Health':   '#c46888',
     },
   },
   {
@@ -94,6 +108,13 @@ const PRESETS = [
       '--muted-hover':    'rgba(100,180,120,0.08)',
       '--faint':          'rgba(100,180,120,0.07)',
     },
+    categoryColors: {
+      'Work':     '#52986a',
+      'Social':   '#70b484',
+      'Meals':    '#90be58',
+      'Personal': '#58a898',
+      'Health':   '#a8be50',
+    },
   },
   {
     name: 'Sunflower',
@@ -111,6 +132,13 @@ const PRESETS = [
       '--card-hover':     '#fff8c0',
       '--muted-hover':    '#fff3a8',
       '--faint':          '#fff3a8',
+    },
+    categoryColors: {
+      'Work':     '#d08828',
+      'Social':   '#c0b838',
+      'Meals':    '#e8a020',
+      'Personal': '#d0a850',
+      'Health':   '#c07028',
     },
   },
 ];
@@ -131,12 +159,22 @@ function cssVarValue(prop, colors) {
   return /^#[0-9a-f]{3,8}$/i.test(val) ? val : '#ffffff';
 }
 
+function presetSwatchGradient(preset) {
+  const bg   = preset.colors['--bg'];
+  const cats = Object.values(preset.categoryColors);
+  const step = 50 / cats.length;
+  const stops = [`${bg} 0%`, `${bg} 45%`];
+  cats.forEach((c, i) => {
+    stops.push(`${c} ${(45 + i * step).toFixed(1)}%`);
+    stops.push(`${c} ${(45 + (i + 1) * step).toFixed(1)}%`);
+  });
+  return `linear-gradient(90deg, ${stops.join(', ')})`;
+}
+
 function buildCustomizerHTML(colors) {
   const presetBtns = PRESETS.map(p =>
     `<button class="color-preset-btn" data-preset="${p.name}" title="${p.name}">
-      <span class="color-preset-swatch"
-        style="background:linear-gradient(135deg,${p.colors['--bg']} 50%,${p.colors['--accent']} 50%)">
-      </span>
+      <span class="color-preset-swatch" style="background:${presetSwatchGradient(p)}"></span>
       ${p.name}
     </button>`
   ).join('');
@@ -157,6 +195,18 @@ function buildCustomizerHTML(colors) {
     <button class="color-customizer-reset">Reset to defaults</button>`;
 }
 
+function applyPresetCategoryColors(preset) {
+  if (!preset.categoryColors) return;
+  let changed = false;
+  categories.forEach(cat => {
+    if (preset.categoryColors[cat.name]) {
+      cat.color = preset.categoryColors[cat.name];
+      changed = true;
+    }
+  });
+  if (changed) saveCategories();
+}
+
 function wireCustomizerEvents(popup) {
   popup.querySelectorAll('.color-preset-btn').forEach(btn => {
     btn.addEventListener('click', e => {
@@ -165,8 +215,10 @@ function wireCustomizerEvents(popup) {
       if (!preset) return;
       saveCustomColors(preset.colors);
       applyCustomColors(preset.colors);
+      applyPresetCategoryColors(preset);
       popup.innerHTML = buildCustomizerHTML(preset.colors);
       wireCustomizerEvents(popup);
+      render();
     });
   });
 
@@ -237,11 +289,13 @@ let savedColors = load('pp-colors', [
   '#d50000','#8e24aa',
 ]);
 
-let view          = 'month';      // month | week | day | analytics
-let anchor        = new Date();   // current navigation anchor date
-let analyticsSpan = 'week';       // day | week | month  (analytics sub-range)
-let editId        = null;         // id of event being edited, null = new
-let pieChart      = null;         // Chart.js instance
+let view                 = 'month';
+let anchor               = new Date();
+let analyticsSpan        = 'week';   // day | week | month | custom
+let analyticsCustomStart = localStorage.getItem('pp-analytics-start') || '';
+let analyticsCustomEnd   = localStorage.getItem('pp-analytics-end')   || '';
+let editId               = null;
+let pieChart             = null;
 
 function saveEvents()     { save('pp-events', events); }
 function saveCategories() { save('pp-categories', categories); }
@@ -273,6 +327,10 @@ function fmtHour(h) {         // 0 → "12 AM", 13 → "1 PM"
   if (h < 12)   return `${h} AM`;
   if (h === 12) return '12 PM';
   return `${h - 12} PM`;
+}
+
+function minsToTime(m) {      // 570 → "09:30"
+  return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
 }
 
 function weekStart(d) {
@@ -371,6 +429,16 @@ function headerTitle() {
   if (view === 'analytics') {
     if (analyticsSpan === 'day')   return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
     if (analyticsSpan === 'month') return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+    if (analyticsSpan === 'custom') {
+      if (!analyticsCustomStart || !analyticsCustomEnd) return 'Custom Range';
+      const s = fromDateStr(analyticsCustomStart), e = fromDateStr(analyticsCustomEnd);
+      if (s.getFullYear() === e.getFullYear()) {
+        if (s.getMonth() === e.getMonth())
+          return `${MONTHS[s.getMonth()]} ${s.getDate()}–${e.getDate()}, ${s.getFullYear()}`;
+        return `${SHORT_MONTHS[s.getMonth()]} ${s.getDate()} – ${SHORT_MONTHS[e.getMonth()]} ${e.getDate()}, ${s.getFullYear()}`;
+      }
+      return `${SHORT_MONTHS[s.getMonth()]} ${s.getDate()}, ${s.getFullYear()} – ${SHORT_MONTHS[e.getMonth()]} ${e.getDate()}, ${e.getFullYear()}`;
+    }
     const s = weekStart(d), e = addDays(s, 6);
     return `${SHORT_MONTHS[s.getMonth()]} ${s.getDate()} – ${SHORT_MONTHS[e.getMonth()]} ${e.getDate()}, ${e.getFullYear()}`;
   }
@@ -382,6 +450,7 @@ function headerTitle() {
 // ===================================================
 
 function navPrev() {
+  if (view === 'analytics' && analyticsSpan === 'custom') return;
   const d = new Date(anchor);
   if (view === 'month')     d.setMonth(d.getMonth() - 1);
   else if (view === 'week') d.setDate(d.getDate() - 7);
@@ -394,6 +463,7 @@ function navPrev() {
 }
 
 function navNext() {
+  if (view === 'analytics' && analyticsSpan === 'custom') return;
   const d = new Date(anchor);
   if (view === 'month')     d.setMonth(d.getMonth() + 1);
   else if (view === 'week') d.setDate(d.getDate() + 7);
@@ -616,6 +686,199 @@ function renderDay(body) {
 }
 
 // ===================================================
+//  EVENT RESIZE
+// ===================================================
+
+let resizeState = null;
+
+function startResize(e) {
+  e.stopPropagation();
+  e.preventDefault();
+
+  const evtEl     = e.currentTarget.closest('.time-event');
+  const col       = evtEl.closest('.tg-day-col');
+  const evtId     = evtEl.dataset.id;
+  const sourceEvt = events.find(ev => ev.id === evtId);
+  if (!sourceEvt) return;
+
+  evtEl.classList.add('resizing');
+  document.body.style.cursor    = 'ns-resize';
+  document.body.style.userSelect = 'none';
+
+  resizeState = { evtEl, col, sourceEvt, newEndMins: toMins(sourceEvt.endTime), moved: false };
+
+  document.addEventListener('mousemove', doResize);
+  document.addEventListener('mouseup',   endResize);
+}
+
+function doResize(e) {
+  if (!resizeState) return;
+  const { evtEl, col, sourceEvt } = resizeState;
+
+  const colRect  = col.getBoundingClientRect();
+  const y        = e.clientY - colRect.top;
+  const rawMins  = Math.round(y / PX_PER_MIN / 15) * 15;
+  const startMins = toMins(sourceEvt.startTime);
+  const endMins   = Math.max(startMins + 15, Math.min(24 * 60, rawMins));
+
+  resizeState.newEndMins = endMins;
+  resizeState.moved = true;
+
+  const heightPx = Math.max(22, (endMins - startMins) * PX_PER_MIN);
+  evtEl.style.height = heightPx + 'px';
+
+  const endStr   = minsToTime(endMins);
+  const timeEl   = evtEl.querySelector('.time-event-time');
+  if (timeEl) {
+    timeEl.textContent = `${fmtTime(sourceEvt.startTime)} – ${fmtTime(endStr)}`;
+  } else if (heightPx > 30) {
+    const titleEl = evtEl.querySelector('.time-event-title');
+    if (titleEl) {
+      const newTime = document.createElement('div');
+      newTime.className = 'time-event-time';
+      newTime.textContent = `${fmtTime(sourceEvt.startTime)} – ${fmtTime(endStr)}`;
+      evtEl.insertBefore(newTime, titleEl.nextSibling);
+    }
+  }
+}
+
+function endResize() {
+  if (!resizeState) return;
+  const { evtEl, sourceEvt, newEndMins, moved } = resizeState;
+
+  document.removeEventListener('mousemove', doResize);
+  document.removeEventListener('mouseup',   endResize);
+  document.body.style.cursor    = '';
+  document.body.style.userSelect = '';
+
+  if (moved) {
+    const newEnd = minsToTime(newEndMins);
+    if (newEnd !== sourceEvt.endTime) {
+      const idx = events.findIndex(e => e.id === sourceEvt.id);
+      if (idx !== -1) { events[idx] = { ...events[idx], endTime: newEnd }; saveEvents(); }
+    }
+    resizeState = null;
+    render();
+  } else {
+    evtEl.classList.remove('resizing');
+    resizeState = null;
+  }
+}
+
+// ===================================================
+//  EVENT DRAG-TO-MOVE
+// ===================================================
+
+let dragMoveState = null;
+
+function startDragMove(e) {
+  if (e.target.closest('.resize-handle')) return;
+  e.preventDefault();
+
+  const evtEl     = e.currentTarget;
+  const col       = evtEl.closest('.tg-day-col');
+  const sourceEvt = events.find(ev => ev.id === evtEl.dataset.id);
+  if (!sourceEvt) return;
+
+  const evtRect  = evtEl.getBoundingClientRect();
+  const duration = toMins(sourceEvt.endTime) - toMins(sourceEvt.startTime);
+
+  dragMoveState = {
+    evtEl, col, sourceEvt, duration,
+    offsetY:      e.clientY - evtRect.top,
+    startX:       e.clientX,
+    startY:       e.clientY,
+    newStartMins: toMins(sourceEvt.startTime),
+    newEndMins:   toMins(sourceEvt.endTime),
+    newDate:      col.dataset.date,
+    moved:        false,
+  };
+
+  document.addEventListener('mousemove', doDragMove);
+  document.addEventListener('mouseup',   endDragMove);
+}
+
+function doDragMove(e) {
+  if (!dragMoveState) return;
+  const { evtEl, sourceEvt, offsetY, duration } = dragMoveState;
+
+  if (!dragMoveState.moved) {
+    const dx = e.clientX - dragMoveState.startX;
+    const dy = e.clientY - dragMoveState.startY;
+    if (Math.hypot(dx, dy) < 4) return;
+    dragMoveState.moved = true;
+    evtEl.classList.add('dragging');
+    // Expand to full column width so it looks clean when crossing columns
+    evtEl.style.left  = '2px';
+    evtEl.style.width = 'calc(100% - 4px)';
+    document.body.style.cursor     = 'grabbing';
+    document.body.style.userSelect = 'none';
+  }
+
+  // Find which day column is under the cursor
+  let targetCol = null;
+  document.querySelectorAll('.tg-day-col').forEach(col => {
+    const r = col.getBoundingClientRect();
+    if (e.clientX >= r.left && e.clientX < r.right) targetCol = col;
+  });
+  if (!targetCol) return;
+
+  // Move element to the target column when crossing a day boundary
+  if (targetCol !== evtEl.parentElement) {
+    targetCol.appendChild(evtEl);
+    dragMoveState.col     = targetCol;
+    dragMoveState.newDate = targetCol.dataset.date;
+  }
+
+  const colRect   = targetCol.getBoundingClientRect();
+  const y         = e.clientY - colRect.top - offsetY;
+  const rawStart  = Math.round(y / PX_PER_MIN / 15) * 15;
+  const startMins = Math.max(0, Math.min(24 * 60 - duration, rawStart));
+  const endMins   = startMins + duration;
+
+  dragMoveState.newStartMins = startMins;
+  dragMoveState.newEndMins   = endMins;
+
+  evtEl.style.top = (startMins * PX_PER_MIN) + 'px';
+
+  const timeEl = evtEl.querySelector('.time-event-time');
+  if (timeEl) {
+    timeEl.textContent = `${fmtTime(minsToTime(startMins))} – ${fmtTime(minsToTime(endMins))}`;
+  }
+}
+
+function endDragMove() {
+  if (!dragMoveState) return;
+  const { evtEl, sourceEvt, newStartMins, newEndMins, moved } = dragMoveState;
+
+  document.removeEventListener('mousemove', doDragMove);
+  document.removeEventListener('mouseup',   endDragMove);
+  document.body.style.cursor     = '';
+  document.body.style.userSelect = '';
+
+  if (moved) {
+    const newStart   = minsToTime(newStartMins);
+    const newEnd     = minsToTime(newEndMins);
+    const targetDate = dragMoveState.newDate || sourceEvt.date;
+    const idx = events.findIndex(e => e.id === sourceEvt.id);
+    if (idx !== -1) {
+      const changed = newStart !== sourceEvt.startTime ||
+                      newEnd   !== sourceEvt.endTime   ||
+                      targetDate !== sourceEvt.date;
+      if (changed) {
+        events[idx] = { ...events[idx], startTime: newStart, endTime: newEnd, date: targetDate };
+        saveEvents();
+      }
+    }
+    dragMoveState = null;
+    render();
+  } else {
+    evtEl.classList.remove('dragging');
+    dragMoveState = null;
+  }
+}
+
+// ===================================================
 //  TIME GRID (shared week + day)
 // ===================================================
 
@@ -677,6 +940,7 @@ function buildTimeGrid(body, cols) {
         style="top:${top}px;height:${height}px;left:calc(${left}% + 2px);width:calc(${width}% - 4px);background:${color};color:${tc}">
         <div class="time-event-title">${evt.title}${recBadge2}</div>
         ${height > 30 ? `<div class="time-event-time">${fmtTime(evt.startTime)} – ${fmtTime(evt.endTime)}</div>` : ''}
+        <div class="resize-handle"></div>
       </div>`;
     }
 
@@ -714,9 +978,21 @@ function buildTimeGrid(body, cols) {
   body.querySelectorAll('.time-event').forEach(el => {
     el.addEventListener('click', e => {
       e.stopPropagation();
+      if (resizeState) return;
       const evt = events.find(ev => ev.id === el.dataset.id);
       if (evt) openEventModal(evt);
     });
+  });
+
+  // Resize handles
+  body.querySelectorAll('.resize-handle').forEach(handle => {
+    handle.addEventListener('mousedown', startResize);
+    handle.addEventListener('click', e => e.stopPropagation());
+  });
+
+  // Drag to move
+  body.querySelectorAll('.time-event').forEach(el => {
+    el.addEventListener('mousedown', startDragMove);
   });
 
   // Click day header → switch to day view
@@ -784,25 +1060,27 @@ function placeEvents(dayEvts) {
 
 function renderAnalytics(body) {
   // Determine date range
-  let start, end;
+  let startStr, endStr;
   if (analyticsSpan === 'day') {
-    start = end = new Date(anchor);
+    startStr = endStr = toDateStr(anchor);
   } else if (analyticsSpan === 'week') {
-    start = weekStart(anchor);
-    end   = addDays(start, 6);
+    const ws = weekStart(anchor);
+    startStr = toDateStr(ws);
+    endStr   = toDateStr(addDays(ws, 6));
+  } else if (analyticsSpan === 'month') {
+    startStr = toDateStr(new Date(anchor.getFullYear(), anchor.getMonth(), 1));
+    endStr   = toDateStr(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0));
   } else {
-    start = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
-    end   = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+    startStr = analyticsCustomStart;
+    endStr   = analyticsCustomEnd;
   }
 
-  const startStr = toDateStr(start);
-  const endStr   = toDateStr(end);
-  const inRange  = getEventsInRange(startStr, endStr);
+  const validRange = startStr && endStr && startStr <= endStr;
+  const inRange    = validRange ? getEventsInRange(startStr, endStr) : [];
 
   // Aggregate hours per category
   const catHours = {};
   let uncatHours = 0;
-
   for (const evt of inRange) {
     const dur = (toMins(evt.endTime) - toMins(evt.startTime)) / 60;
     if (dur <= 0) continue;
@@ -811,7 +1089,6 @@ function renderAnalytics(body) {
   }
 
   const labels = [], data = [], colors = [];
-
   for (const cat of categories) {
     if (catHours[cat.id] > 0) {
       labels.push(cat.name);
@@ -824,24 +1101,44 @@ function renderAnalytics(body) {
     data.push(+uncatHours.toFixed(2));
     colors.push('#9e9e9e');
   }
-
   const total = data.reduce((s, v) => s + v, 0);
+
+  const customRow = analyticsSpan === 'custom' ? `
+    <div class="analytics-custom-row">
+      <span class="analytics-custom-label">From</span>
+      <input type="date" id="analytics-start" class="analytics-date-input"
+             value="${analyticsCustomStart}" ${endStr ? `max="${endStr}"` : ''}>
+      <span class="analytics-custom-label">to</span>
+      <input type="date" id="analytics-end" class="analytics-date-input"
+             value="${analyticsCustomEnd}" ${startStr ? `min="${startStr}"` : ''}>
+    </div>` : '';
 
   const rangeBtns = `
     <div class="analytics-range-row">
-      ${['day','week','month'].map(r => `
+      ${['day','week','month','custom'].map(r => `
         <button class="range-btn ${analyticsSpan === r ? 'active' : ''}" data-range="${r}">
-          ${r.charAt(0).toUpperCase() + r.slice(1)}
+          ${r === 'custom' ? 'Custom' : r.charAt(0).toUpperCase() + r.slice(1)}
         </button>`).join('')}
-    </div>`;
+    </div>
+    ${customRow}`;
 
-  if (!data.length) {
+  const showEmpty = !data.length;
+  let emptyMsg = 'No events in this period to analyze.';
+  if (analyticsSpan === 'custom' && !validRange) {
+    emptyMsg = startStr && endStr && startStr > endStr
+      ? 'End date must be after start date.'
+      : 'Choose a start and end date above.';
+  }
+
+  if (showEmpty) {
     body.innerHTML = `<div class="analytics-view">
       ${rangeBtns}
       <div class="analytics-empty">
         <div class="analytics-empty-icon">📊</div>
-        <p>No events in this period to analyze.</p>
-        <p>Create some events and assign them categories to see your time breakdown here.</p>
+        <p>${emptyMsg}</p>
+        ${validRange || analyticsSpan !== 'custom'
+          ? '<p>Create some events and assign them categories to see your time breakdown here.</p>'
+          : ''}
       </div>
     </div>`;
   } else {
@@ -867,15 +1164,7 @@ function renderAnalytics(body) {
     const ctx = document.getElementById('pie-canvas').getContext('2d');
     pieChart = new Chart(ctx, {
       type: 'pie',
-      data: {
-        labels,
-        datasets: [{
-          data,
-          backgroundColor: colors,
-          borderColor: '#fff',
-          borderWidth: 2,
-        }],
-      },
+      data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: '#fff', borderWidth: 2 }] },
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -885,8 +1174,7 @@ function renderAnalytics(body) {
             callbacks: {
               label: ctx => {
                 const val = ctx.parsed;
-                const pct = ((val / total) * 100).toFixed(1);
-                return ` ${val.toFixed(1)}h  (${pct}%)`;
+                return ` ${val.toFixed(1)}h  (${((val/total)*100).toFixed(1)}%)`;
               },
             },
           },
@@ -895,13 +1183,41 @@ function renderAnalytics(body) {
     });
   }
 
+  // Range buttons
   body.querySelectorAll('.range-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      analyticsSpan = btn.dataset.range;
+      const r = btn.dataset.range;
+      if (r === 'custom' && !analyticsCustomStart) {
+        analyticsCustomStart = toDateStr(new Date(anchor.getFullYear(), anchor.getMonth(), 1));
+        analyticsCustomEnd   = toDateStr(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0));
+        localStorage.setItem('pp-analytics-start', analyticsCustomStart);
+        localStorage.setItem('pp-analytics-end',   analyticsCustomEnd);
+      }
+      analyticsSpan = r;
       renderHeader();
       renderBody();
     });
   });
+
+  // Custom date pickers
+  const startInput = body.querySelector('#analytics-start');
+  const endInput   = body.querySelector('#analytics-end');
+  if (startInput) {
+    startInput.addEventListener('change', () => {
+      analyticsCustomStart = startInput.value;
+      localStorage.setItem('pp-analytics-start', analyticsCustomStart);
+      renderHeader();
+      renderBody();
+    });
+  }
+  if (endInput) {
+    endInput.addEventListener('change', () => {
+      analyticsCustomEnd = endInput.value;
+      localStorage.setItem('pp-analytics-end', analyticsCustomEnd);
+      renderHeader();
+      renderBody();
+    });
+  }
 }
 
 // ===================================================
@@ -1165,6 +1481,49 @@ function contrastColor(hex) {
 }
 
 // ===================================================
+//  WELCOME SCREEN
+// ===================================================
+
+function applyUserName(name) {
+  const logoText = document.querySelector('.logo-text');
+  if (logoText) logoText.textContent = `${name}'s Planner`;
+}
+
+function initWelcome() {
+  const savedName = localStorage.getItem('pp-user-name');
+  if (savedName) {
+    applyUserName(savedName);
+    return;
+  }
+
+  const screen      = document.getElementById('welcome-screen');
+  const input       = document.getElementById('welcome-input');
+  const nameDisplay = document.getElementById('welcome-name-display');
+  const hint        = document.getElementById('welcome-hint');
+
+  input.focus();
+
+  input.addEventListener('input', () => {
+    const val = input.value;
+    nameDisplay.textContent = val ? ', ' + val : '';
+    hint.textContent = val.trim() ? 'press Enter to continue' : "what's your name?";
+  });
+
+  const submit = () => {
+    const name = input.value.trim();
+    if (!name) return;
+    localStorage.setItem('pp-user-name', name);
+    screen.classList.add('exiting');
+    screen.addEventListener('animationend', () => {
+      screen.remove();
+      applyUserName(name);
+    }, { once: true });
+  };
+
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+}
+
+// ===================================================
 //  WIRE UP EVENT LISTENERS
 // ===================================================
 
@@ -1250,6 +1609,7 @@ function init() {
   });
 
   render();
+  initWelcome();
 }
 
 init();
