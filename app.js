@@ -326,11 +326,13 @@ function onOutsideCustomizerClick(e) {
 // ===================================================
 
 const DEFAULT_CATEGORIES = [
-  { id: 'c1', name: 'Work',     color: '#1a73e8' },
-  { id: 'c2', name: 'Social',   color: '#33b679' },
-  { id: 'c3', name: 'Meals',    color: '#f6bf26' },
-  { id: 'c4', name: 'Personal', color: '#a4bdfc' },
-  { id: 'c5', name: 'Health',   color: '#ff887c' },
+  { id: 'c1', name: 'Classes/Exams', color: '#1a73e8' },
+  { id: 'c2', name: 'Research',      color: '#9c27b0' },
+  { id: 'c3', name: 'Clubs',         color: '#33b679' },
+  { id: 'c4', name: 'Building',      color: '#f6bf26' },
+  { id: 'c5', name: 'Social',        color: '#ff7043' },
+  { id: 'c6', name: 'Sleep',         color: '#42a5f5' },
+  { id: 'c7', name: 'Work',          color: '#e53935' },
 ];
 const DEFAULT_SAVED_COLORS = [
   '#1a73e8','#33b679','#f6bf26','#a4bdfc','#ff887c',
@@ -379,6 +381,8 @@ let analyticsSpan        = 'week';   // day | week | month | custom
 let analyticsCustomStart = localStorage.getItem(pk('pp-analytics-start')) || '';
 let analyticsCustomEnd   = localStorage.getItem(pk('pp-analytics-end'))   || '';
 let editId               = null;
+let editOccurrenceDate   = null;
+let catDragSrcId         = null;
 let pieCharts            = [];
 let analyticsTab         = 'events'; // 'events' | 'tasks' | 'mood' | 'sleep'
 let analyticsChartType   = localStorage.getItem('pp-chart-type') || 'pie'; // global pref
@@ -477,14 +481,32 @@ function dateDiffDays(aStr, bStr) {
   return Math.round((fromDateStr(bStr) - fromDateStr(aStr)) / 86400000);
 }
 
+function prevDay(dateStr) {
+  const d = fromDateStr(dateStr);
+  d.setDate(d.getDate() - 1);
+  return toDateStr(d);
+}
+
 function isRecurrenceInstance(evt, dateStr) {
   if (dateStr < evt.date) return false;
+  if (evt.exceptions?.includes(dateStr)) return false;
   const rec = evt.recurrence;
   if (!rec || rec.type === 'none') return evt.date === dateStr;
   if (rec.endDate && dateStr > rec.endDate) return false;
   const interval = Math.max(1, rec.interval || 1);
   if (rec.type === 'daily') return dateDiffDays(evt.date, dateStr) % interval === 0;
-  if (rec.type === 'weekly') return dateDiffDays(evt.date, dateStr) % (7 * interval) === 0;
+  if (rec.type === 'weekly') {
+    if (rec.days && rec.days.length > 0) {
+      if (!rec.days.includes(fromDateStr(dateStr).getDay())) return false;
+      // Find Sunday of the week containing evt.date, use it as the week-0 anchor
+      const baseDate  = fromDateStr(evt.date);
+      const sunday0   = new Date(baseDate);
+      sunday0.setDate(baseDate.getDate() - baseDate.getDay());
+      const weeksDiff = Math.floor(dateDiffDays(toDateStr(sunday0), dateStr) / 7);
+      return weeksDiff % interval === 0;
+    }
+    return dateDiffDays(evt.date, dateStr) % (7 * interval) === 0;
+  }
   if (rec.type === 'monthly') {
     const base = fromDateStr(evt.date), target = fromDateStr(dateStr);
     if (target.getDate() !== base.getDate()) return false;
@@ -500,8 +522,14 @@ function isRecurrenceInstance(evt, dateStr) {
   return false;
 }
 
+function isCategoryVisible(categoryId) {
+  const cat = categories.find(c => c.id === categoryId);
+  return !cat || !cat.hidden;
+}
+
 function getEventsForDate(dateStr) {
   return events.flatMap(evt => {
+    if (!isCategoryVisible(evt.categoryId)) return [];
     const rec = evt.recurrence;
     if (!rec || rec.type === 'none') return evt.date === dateStr ? [evt] : [];
     return isRecurrenceInstance(evt, dateStr) ? [{ ...evt, date: dateStr }] : [];
@@ -515,6 +543,7 @@ function getEventsInRange(startStr, endStr) {
   while (cur <= end) {
     const dateStr = toDateStr(new Date(cur));
     for (const evt of events) {
+      if (!isCategoryVisible(evt.categoryId)) continue;
       const rec = evt.recurrence;
       if (!rec || rec.type === 'none') {
         if (evt.date === dateStr) result.push(evt);
@@ -787,11 +816,24 @@ function renderCatList() {
     return;
   }
   ul.innerHTML = categories.map(c =>
-    `<li class="cat-item">
-       <span class="cat-dot" style="background:${c.color}"></span>
+    `<li class="cat-item ${c.hidden ? 'cat-hidden' : ''}" data-id="${c.id}">
+       <span class="cat-dot" style="background:${c.hidden ? 'transparent' : c.color};${c.hidden ? `border:2px solid ${c.color}` : ''}"></span>
        <span class="cat-name">${c.name}</span>
+       <button class="cat-eye-btn" data-id="${c.id}" title="${c.hidden ? 'Show' : 'Hide'}">
+         ${c.hidden
+           ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`
+           : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`}
+       </button>
      </li>`
   ).join('');
+
+  ul.querySelectorAll('.cat-eye-btn').forEach(btn =>
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const cat = categories.find(c => c.id === btn.dataset.id);
+      if (cat) { cat.hidden = !cat.hidden; saveCategories(); renderCatList(); render(); }
+    })
+  );
 }
 
 // ===================================================
@@ -855,7 +897,7 @@ function renderMonth(body) {
       const color = cat ? cat.color : '#9e9e9e';
       const tc    = contrastColor(color);
       const recBadge = (evt.recurrence?.type && evt.recurrence.type !== 'none') ? '<span class="rec-icon">↻</span>' : '';
-      html += `<div class="month-event" data-id="${evt.id}" style="background:${color};color:${tc}">
+      html += `<div class="month-event" data-id="${evt.id}" data-date="${evt.date}" style="background:${color};color:${tc}">
         <span class="month-event-time">${fmtTime(evt.startTime)}</span>
         <span>${evt.title}${recBadge}</span>
       </div>`;
@@ -890,7 +932,7 @@ function renderMonth(body) {
     el.addEventListener('click', e => {
       e.stopPropagation();
       const evt = events.find(ev => ev.id === el.dataset.id);
-      if (evt) openEventModal(evt);
+      if (evt) openEventModal(evt, {}, el.dataset.date);
     });
   });
 }
@@ -1164,7 +1206,7 @@ function buildTimeGrid(body, cols) {
       const color = cat ? cat.color : '#9e9e9e';
       const tc    = contrastColor(color);
       const recBadge2 = (evt.recurrence?.type && evt.recurrence.type !== 'none') ? ' <span class="rec-icon">↻</span>' : '';
-      html += `<div class="time-event" data-id="${evt.id}"
+      html += `<div class="time-event" data-id="${evt.id}" data-date="${evt.date}"
         style="top:${top}px;height:${height}px;left:calc(${left}% + 2px);width:calc(${width}% - 4px);background:${color};color:${tc}">
         <div class="time-event-title">${evt.title}${recBadge2}</div>
         ${height > 30 ? `<div class="time-event-time">${fmtTime(evt.startTime)} – ${fmtTime(evt.endTime)}</div>` : ''}
@@ -1208,7 +1250,7 @@ function buildTimeGrid(body, cols) {
       e.stopPropagation();
       if (resizeState) return;
       const evt = events.find(ev => ev.id === el.dataset.id);
-      if (evt) openEventModal(evt);
+      if (evt) openEventModal(evt, {}, el.dataset.date);
     });
   });
 
@@ -1530,6 +1572,7 @@ function renderMoodView(body) {
     </div>` : '';
 
   body.innerHTML = `<div class="mood-view">
+    ${analyticsTabBar()}
     <div class="mood-top-row">
       <div class="mood-span-row">
         <button class="range-btn${moodSpan === 'week'  ? ' active' : ''}" data-mspan="week">Week</button>
@@ -1563,6 +1606,8 @@ function renderMoodView(body) {
       renderBody();
     });
   });
+
+  wireAnalyticsTabs(body);
 
   // Span switcher
   body.querySelectorAll('[data-mspan]').forEach(btn => {
@@ -1712,6 +1757,7 @@ function renderSleepView(body) {
     </div>` : '';
 
   body.innerHTML = `<div class="mood-view">
+    ${analyticsTabBar()}
     <div class="mood-top-row">
       <div class="mood-span-row">
         <button class="range-btn${sleepSpan === 'week'  ? ' active' : ''}" data-sspan="week">Week</button>
@@ -1743,6 +1789,8 @@ function renderSleepView(body) {
       renderBody();
     });
   });
+
+  wireAnalyticsTabs(body);
 
   body.querySelectorAll('[data-sspan]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -2289,11 +2337,18 @@ function renderAnalytics(body) {
 //  EVENT MODAL
 // ===================================================
 
-function openEventModal(evt, defaults = {}) {
+function openEventModal(evt, defaults = {}, occurrenceDate = null) {
   editId = evt ? evt.id : null;
+  editOccurrenceDate = occurrenceDate || evt?.date || null;
 
+  const isRecurring = !!(evt?.recurrence?.type && evt.recurrence.type !== 'none');
   document.getElementById('modal-title').textContent = evt ? 'Edit Event' : 'New Event';
   document.getElementById('delete-event-btn').classList.toggle('hidden', !evt);
+  document.getElementById('edit-scope-row').classList.toggle('hidden', !isRecurring);
+  if (isRecurring) {
+    const radio = document.querySelector('input[name="edit-scope"][value="one"]');
+    if (radio) radio.checked = true;
+  }
 
   // Fill fields
   document.getElementById('event-title').value = evt?.title       ?? '';
@@ -2314,6 +2369,11 @@ function openEventModal(evt, defaults = {}) {
   document.getElementById('event-recurrence-type').value = rec.type || 'none';
   document.getElementById('event-recurrence-interval').value = rec.interval || 1;
   document.getElementById('event-recurrence-end').value = rec.endDate || '';
+  // Reset day buttons, then restore saved selection before updateRecurrenceUI runs
+  document.querySelectorAll('.rec-day-btn').forEach(b => b.classList.remove('rec-day-active'));
+  if (rec.type === 'weekly' && rec.days?.length) {
+    rec.days.forEach(d => document.querySelector(`.rec-day-btn[data-day="${d}"]`)?.classList.add('rec-day-active'));
+  }
   updateRecurrenceUI(rec.type || 'none');
 
   document.getElementById('event-modal').classList.remove('hidden');
@@ -2343,13 +2403,41 @@ function saveEvent() {
   const recType     = document.getElementById('event-recurrence-type').value;
   const recInterval = Math.max(1, parseInt(document.getElementById('event-recurrence-interval').value) || 1);
   const recEnd      = document.getElementById('event-recurrence-end').value;
-  const recurrence  = { type: recType, interval: recInterval, endDate: recEnd };
+  const recDays     = recType === 'weekly'
+    ? [...document.querySelectorAll('.rec-day-btn.rec-day-active')].map(b => Number(b.dataset.day)).sort()
+    : [];
+  const recurrence  = { type: recType, interval: recInterval, endDate: recEnd, days: recDays };
 
   const record = { title, date, startTime: start, endTime: end, categoryId: catId, description: desc, recurrence };
 
   if (editId) {
-    const idx = events.findIndex(e => e.id === editId);
-    if (idx !== -1) events[idx] = { ...events[idx], ...record };
+    const idx      = events.findIndex(e => e.id === editId);
+    const existing = idx !== -1 ? events[idx] : null;
+    const isRecurring = !!(existing?.recurrence?.type && existing.recurrence.type !== 'none');
+    const scope    = isRecurring
+      ? (document.querySelector('input[name="edit-scope"]:checked')?.value || 'all')
+      : 'all';
+
+    if (!existing) {
+      // nothing
+    } else if (!isRecurring || scope === 'all') {
+      events[idx] = { ...existing, ...record };
+    } else if (scope === 'one') {
+      // Skip this occurrence on the original; create a standalone copy with edits
+      const exceptions = [...(existing.exceptions || []), editOccurrenceDate];
+      events[idx] = { ...existing, exceptions };
+      events.push({ id: uid(), ...record, date: editOccurrenceDate,
+        recurrence: { type: 'none', interval: 1, endDate: '' } });
+    } else if (scope === 'future') {
+      if (editOccurrenceDate === existing.date) {
+        // First occurrence — just replace the original
+        events[idx] = { ...existing, ...record };
+      } else {
+        // Truncate original before this occurrence; start new series from here
+        events[idx] = { ...existing, recurrence: { ...existing.recurrence, endDate: prevDay(editOccurrenceDate) } };
+        events.push({ id: uid(), ...record, date: editOccurrenceDate });
+      }
+    }
   } else {
     events.push({ id: uid(), ...record });
   }
@@ -2391,6 +2479,7 @@ function renderCatModalList() {
 
   el.innerHTML = categories.map(c => `
     <div class="cat-modal-item" data-id="${c.id}">
+      <span class="cat-drag-handle" draggable="true" title="Drag to reorder">⠿</span>
       <button class="cat-color-btn" data-id="${c.id}" style="background:${c.color}" title="Change color"></button>
       <input type="text" class="cat-modal-name-input" data-id="${c.id}" value="${c.name}" spellcheck="false">
       <button class="cat-del-btn" data-id="${c.id}" title="Delete">&#10005;</button>
@@ -2425,6 +2514,42 @@ function renderCatModalList() {
       saveCategories(); saveEvents();
       renderCatModalList();
       render();
+    });
+  });
+
+  // Drag-to-reorder
+  el.querySelectorAll('.cat-drag-handle').forEach(handle => {
+    handle.addEventListener('dragstart', e => {
+      catDragSrcId = handle.closest('.cat-modal-item').dataset.id;
+      handle.closest('.cat-modal-item').classList.add('cat-drag-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', catDragSrcId);
+    });
+    handle.addEventListener('dragend', () => {
+      el.querySelectorAll('.cat-modal-item').forEach(i => i.classList.remove('cat-drag-dragging', 'cat-drag-over'));
+      catDragSrcId = null;
+    });
+  });
+
+  el.querySelectorAll('.cat-modal-item').forEach(item => {
+    item.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      el.querySelectorAll('.cat-modal-item').forEach(i => i.classList.remove('cat-drag-over'));
+      if (item.dataset.id !== catDragSrcId) item.classList.add('cat-drag-over');
+    });
+    item.addEventListener('dragleave', () => item.classList.remove('cat-drag-over'));
+    item.addEventListener('drop', e => {
+      e.preventDefault();
+      if (!catDragSrcId || catDragSrcId === item.dataset.id) return;
+      const srcIdx = categories.findIndex(c => c.id === catDragSrcId);
+      const tgtIdx = categories.findIndex(c => c.id === item.dataset.id);
+      if (srcIdx === -1 || tgtIdx === -1) return;
+      const [moved] = categories.splice(srcIdx, 1);
+      categories.splice(tgtIdx, 0, moved);
+      saveCategories();
+      renderCatModalList();
+      renderCatList();
     });
   });
 }
@@ -2525,9 +2650,22 @@ function addCategory() {
 function updateRecurrenceUI(type) {
   const opts      = document.getElementById('recurrence-options');
   const unitLabel = document.getElementById('recurrence-unit-label');
+  const daysRow   = document.getElementById('recurrence-days-row');
   opts.classList.toggle('hidden', type === 'none');
+  daysRow.classList.toggle('hidden', type !== 'weekly');
   const units = { daily: 'days', weekly: 'weeks', monthly: 'months', yearly: 'years' };
   unitLabel.textContent = units[type] || 'days';
+
+  if (type === 'weekly') {
+    const anyActive = document.querySelector('.rec-day-btn.rec-day-active');
+    if (!anyActive) {
+      const dateVal = document.getElementById('event-date').value;
+      if (dateVal) {
+        const d = fromDateStr(dateVal).getDay();
+        document.querySelector(`.rec-day-btn[data-day="${d}"]`)?.classList.add('rec-day-active');
+      }
+    }
+  }
 }
 
 // ===================================================
@@ -2543,15 +2681,6 @@ function contrastColor(hex) {
   const g = parseInt(hex.slice(3,5), 16);
   const b = parseInt(hex.slice(5,7), 16);
   return (0.299*r + 0.587*g + 0.114*b) / 255 > 0.58 ? '#333' : '#fff';
-}
-
-// ===================================================
-//  WELCOME SCREEN
-// ===================================================
-
-function applyUserName(name) {
-  const logoText = document.querySelector('.logo-text');
-  if (logoText) logoText.textContent = `${name}'s Planner`;
 }
 
 // ===================================================
@@ -2632,12 +2761,254 @@ function importICS(text) {
   try {
     const imported = parseICS(text);
     if (!imported.length) { alert('No events found in this calendar file.'); return; }
-    events.push(...imported);
-    saveEvents();
     closeProfileModal();
-    render();
-    showToast(`Imported ${imported.length} event${imported.length !== 1 ? 's' : ''} into this profile.`);
+    showImportReview(imported);
   } catch { alert('Could not read the calendar file. Make sure it is a valid .ics file.'); }
+}
+
+// ===================================================
+//  IMPORT REVIEW MODAL
+// ===================================================
+
+function showImportReview(importedEvents) {
+  // Group into recurring series and one-time events
+  const seriesMap = {};  // icsUID -> [events]
+  const oneTime   = [];
+  for (const ev of importedEvents) {
+    if (ev.recurrence && ev.recurrence.type !== 'none' && ev._icsUID) {
+      (seriesMap[ev._icsUID] = seriesMap[ev._icsUID] || []).push(ev);
+    } else {
+      oneTime.push(ev);
+    }
+  }
+  const series = Object.values(seriesMap);
+
+  // Sort most recent first
+  oneTime.sort((a, b) => b.date.localeCompare(a.date));
+  series.sort((a, b) => b[0].date.localeCompare(a[0].date));
+
+  const catOptions = categories.map(c =>
+    `<option value="${c.id}">${c.name}</option>`
+  ).join('');
+  const noCatOption = `<option value="">— No category —</option>`;
+
+  const seriesRows = series.map((evs, i) => {
+    const e = evs[0];
+    const freq = e.recurrence?.type || '';
+    return `<div class="ir-row ir-series-row" data-series="${i}" data-date="${e.date}">
+      <div class="ir-row-info">
+        <span class="ir-title">${e.title}</span>
+        <span class="ir-meta">${e.date} · ${freq} · ${evs.length} occurrence${evs.length !== 1 ? 's' : ''}</span>
+      </div>
+      <select class="ir-cat-sel" data-series="${i}">${noCatOption}${catOptions}</select>
+      <button class="ir-remove-btn" data-remove-series="${i}" title="Remove">×</button>
+    </div>`;
+  }).join('');
+
+  const oneTimeRows = oneTime.map((ev, i) => {
+    const time = ev.startTime ? ` · ${ev.startTime}` : '';
+    return `<div class="ir-row" data-one="${i}" data-date="${ev.date}">
+      <div class="ir-row-info">
+        <span class="ir-title">${ev.title}</span>
+        <span class="ir-meta">${ev.date}${time}</span>
+      </div>
+      <select class="ir-cat-sel" data-one="${i}">${noCatOption}${catOptions}</select>
+      <button class="ir-remove-btn" data-remove-one="${i}" title="Remove">×</button>
+    </div>`;
+  }).join('');
+
+  const modal = document.getElementById('import-review-modal');
+  const body  = document.getElementById('import-review-body');
+
+  body.innerHTML = `
+    <div class="ir-apply-row">
+      <label class="ir-apply-label">Apply category to all:</label>
+      <select id="ir-apply-all">${noCatOption}${catOptions}</select>
+    </div>
+    <div class="ir-date-filter-row">
+      <label class="ir-apply-label">Filter by date:</label>
+      <input type="date" id="ir-filter-start" class="ir-date-input">
+      <span class="ir-date-sep">–</span>
+      <input type="date" id="ir-filter-end" class="ir-date-input">
+    </div>
+    ${series.length ? `<div class="ir-section-header">Repeating Series</div>${seriesRows}` : ''}
+    ${oneTime.length ? `<div class="ir-section-header">One-time Events</div>${oneTimeRows}` : ''}
+    <div class="ir-footer">
+      <button class="btn-cancel ir-cancel-btn">Cancel</button>
+      <button class="btn-danger ir-remove-sel-btn hidden">Remove selected (0)</button>
+      <button class="btn-primary ir-confirm-btn">Import ${importedEvents.length} event${importedEvents.length !== 1 ? 's' : ''}</button>
+    </div>`;
+
+  modal.classList.remove('hidden');
+
+  const removedOne    = new Set();
+  const removedSeries = new Set();
+  const filteredOne   = new Set();
+  const filteredSeries = new Set();
+  const selectedRows  = new Set();
+  let   lastClickedRow = null;
+  let   isDragging     = false;
+  let   dragAction     = null; // 'select' | 'deselect'
+
+  function updateConfirmCount() {
+    const remaining =
+      oneTime.filter((_, i) => !removedOne.has(i) && !filteredOne.has(i)).length +
+      series.filter((_, i) => !removedSeries.has(i) && !filteredSeries.has(i))
+            .reduce((sum, evs) => sum + evs.length, 0);
+    body.querySelector('.ir-confirm-btn').textContent = `Import ${remaining} event${remaining !== 1 ? 's' : ''}`;
+  }
+
+  function applyDateFilter() {
+    const start = body.querySelector('#ir-filter-start').value;
+    const end   = body.querySelector('#ir-filter-end').value;
+    filteredOne.clear();
+    filteredSeries.clear();
+    body.querySelectorAll('.ir-row').forEach(row => {
+      const d       = row.dataset.date || '';
+      const inRange = (!start || d >= start) && (!end || d <= end);
+      row.classList.toggle('ir-date-filtered', !inRange);
+      if (!inRange) {
+        const rmOne    = row.querySelector('[data-remove-one]');
+        const rmSeries = row.querySelector('[data-remove-series]');
+        if (rmOne)    filteredOne.add(Number(rmOne.dataset.removeOne));
+        if (rmSeries) filteredSeries.add(Number(rmSeries.dataset.removeSeries));
+      }
+    });
+    updateConfirmCount();
+  }
+
+  body.querySelector('#ir-filter-start').addEventListener('change', applyDateFilter);
+  body.querySelector('#ir-filter-end').addEventListener('change', applyDateFilter);
+
+  function updateSelectionUI() {
+    const n = selectedRows.size;
+    const btn = body.querySelector('.ir-remove-sel-btn');
+    btn.textContent = `Remove selected (${n})`;
+    btn.classList.toggle('hidden', n === 0);
+  }
+
+  function applyDragAction(row) {
+    if (dragAction === 'select') { selectedRows.add(row);    row.classList.add('ir-selected'); }
+    else                         { selectedRows.delete(row); row.classList.remove('ir-selected'); }
+  }
+
+  function removeRow(row) {
+    const rmOne    = row.querySelector('[data-remove-one]');
+    const rmSeries = row.querySelector('[data-remove-series]');
+    if (rmOne)    removedOne.add(Number(rmOne.dataset.removeOne));
+    if (rmSeries) removedSeries.add(Number(rmSeries.dataset.removeSeries));
+    selectedRows.delete(row);
+    row.remove();
+  }
+
+  const stopDrag = () => { isDragging = false; };
+  document.addEventListener('mouseup', stopDrag);
+
+  function cleanup() {
+    document.removeEventListener('mouseup', stopDrag);
+    closeImportReview();
+  }
+
+  // Individual X remove buttons
+  body.querySelectorAll('.ir-remove-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      removeRow(btn.closest('.ir-row'));
+      updateSelectionUI();
+      updateConfirmCount();
+    });
+  });
+
+  // Row mousedown starts selection / drag; mouseover extends it while held
+  body.querySelectorAll('.ir-row').forEach(row => {
+    row.addEventListener('mousedown', e => {
+      if (e.target.closest('select, button')) return;
+      if (e.shiftKey && lastClickedRow) {
+        const allRows = [...body.querySelectorAll('.ir-row')];
+        if (allRows.includes(lastClickedRow)) {
+          const a = allRows.indexOf(lastClickedRow);
+          const b = allRows.indexOf(row);
+          const [lo, hi] = a < b ? [a, b] : [b, a];
+          allRows.slice(lo, hi + 1).forEach(r => { selectedRows.add(r); r.classList.add('ir-selected'); });
+          updateSelectionUI();
+          return;
+        }
+      }
+      e.preventDefault(); // prevent text selection while dragging
+      isDragging = true;
+      dragAction = selectedRows.has(row) ? 'deselect' : 'select';
+      applyDragAction(row);
+      lastClickedRow = row;
+      updateSelectionUI();
+    });
+
+    row.addEventListener('mouseover', () => {
+      if (!isDragging) return;
+      applyDragAction(row);
+      updateSelectionUI();
+    });
+  });
+
+  // Remove selected button
+  body.querySelector('.ir-remove-sel-btn').addEventListener('click', () => {
+    [...selectedRows].forEach(row => removeRow(row));
+    selectedRows.clear();
+    lastClickedRow = null;
+    updateSelectionUI();
+    updateConfirmCount();
+  });
+
+  // Apply-all dropdown
+  body.querySelector('#ir-apply-all').addEventListener('change', e => {
+    body.querySelectorAll('.ir-cat-sel').forEach(sel => { sel.value = e.target.value; });
+  });
+
+  // Cancel
+  body.querySelector('.ir-cancel-btn').addEventListener('click', cleanup);
+  modal.querySelector('.modal-overlay').addEventListener('click', cleanup);
+  modal.querySelector('.modal-close-btn').addEventListener('click', cleanup);
+
+  // Confirm
+  body.querySelector('.ir-confirm-btn').addEventListener('click', () => {
+    const seriesCats = {};
+    body.querySelectorAll('[data-series]').forEach(sel => {
+      if (sel.tagName === 'SELECT') seriesCats[sel.dataset.series] = sel.value;
+    });
+    const oneCats = {};
+    body.querySelectorAll('[data-one]').forEach(sel => {
+      if (sel.tagName === 'SELECT') oneCats[sel.dataset.one] = sel.value;
+    });
+
+    const toImport = [];
+
+    series.forEach((evs, i) => {
+      if (removedSeries.has(i) || filteredSeries.has(i)) return;
+      const catId = seriesCats[i] || '';
+      evs.forEach(ev => {
+        if (catId) ev.categoryId = catId;
+        delete ev._icsUID;
+        toImport.push(ev);
+      });
+    });
+
+    oneTime.forEach((ev, i) => {
+      if (removedOne.has(i) || filteredOne.has(i)) return;
+      const catId = oneCats[i] || '';
+      if (catId) ev.categoryId = catId;
+      delete ev._icsUID;
+      toImport.push(ev);
+    });
+
+    const importCount = toImport.length;
+    events.push(...toImport);
+    saveEvents();
+    cleanup();
+    render();
+    showToast(`Imported ${importCount} event${importCount !== 1 ? 's' : ''} into this profile.`);
+  });
+}
+
+function closeImportReview() {
+  document.getElementById('import-review-modal').classList.add('hidden');
 }
 
 // ===================================================
@@ -2694,7 +3065,10 @@ function parseICS(text) {
       ? parseICSRRule(raw['RRULE'].val)
       : { type: 'none', interval: 1, endDate: '' };
 
-    return { id: uid(), title, date: start.dateStr, startTime, endTime, description: desc, categoryId: '', recurrence };
+    const icsUID = raw['UID']?.val || '';
+    const ev = { id: uid(), title, date: start.dateStr, startTime, endTime, description: desc, categoryId: '', recurrence };
+    if (icsUID) ev._icsUID = icsUID;
+    return ev;
   }).filter(Boolean);
 }
 
@@ -2751,7 +3125,7 @@ function showToast(msg) {
     toast.className = 'app-toast';
     document.body.appendChild(toast);
   }
-  toast.textContent = msg;
+  toast.innerHTML = `<span class="toast-bread">🍞</span>${msg}`;
   toast.classList.add('toast-visible');
   clearTimeout(toast._t);
   toast._t = setTimeout(() => toast.classList.remove('toast-visible'), 3200);
@@ -2856,45 +3230,6 @@ function renderProfileModal() {
   });
 }
 
-function initWelcome() {
-  const savedName = localStorage.getItem(pk('pp-user-name'));
-  if (savedName) {
-    applyUserName(savedName);
-    return;
-  }
-
-  const screen      = document.getElementById('welcome-screen');
-  const input       = document.getElementById('welcome-input');
-  const nameDisplay = document.getElementById('welcome-name-display');
-  const hint        = document.getElementById('welcome-hint');
-
-  nameDisplay.innerHTML = ', <span class="welcome-blank">______</span>';
-  input.focus();
-
-  input.addEventListener('input', () => {
-    const val = input.value;
-    nameDisplay.innerHTML = val
-      ? ', ' + val
-      : ', <span class="welcome-blank">______</span>';
-    hint.textContent = val.trim() ? 'press Enter to continue' : "what's your name?";
-  });
-
-  const submit = () => {
-    const name = input.value.trim();
-    if (!name) return;
-    localStorage.setItem(pk('pp-user-name'), name);
-    const prof = profiles.find(p => p.id === activeProfileId);
-    if (prof && prof.name === 'My Profile') { prof.name = name; saveProfiles(); }
-    screen.classList.add('exiting');
-    screen.addEventListener('animationend', () => {
-      screen.remove();
-      applyUserName(name);
-    }, { once: true });
-  };
-
-  input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
-}
-
 // ===================================================
 //  WIRE UP EVENT LISTENERS
 // ===================================================
@@ -2916,8 +3251,12 @@ function init() {
   // Tasks
   document.getElementById('add-task-btn').addEventListener('click', showAddTaskForm);
 
-  // Manage categories
+  // Manage / add categories
   document.getElementById('manage-categories-btn').addEventListener('click', openCatModal);
+  document.getElementById('add-category-btn').addEventListener('click', () => {
+    openCatModal();
+    setTimeout(() => document.getElementById('new-cat-name')?.focus(), 50);
+  });
 
   // Event form submit
   document.getElementById('event-form').addEventListener('submit', e => {
@@ -2928,6 +3267,11 @@ function init() {
   // Recurrence type change
   document.getElementById('event-recurrence-type').addEventListener('change', e => {
     updateRecurrenceUI(e.target.value);
+  });
+
+  // Weekly day-of-week toggles
+  document.querySelectorAll('.rec-day-btn').forEach(btn => {
+    btn.addEventListener('click', () => btn.classList.toggle('rec-day-active'));
   });
 
   // Auto-advance end time when start changes
@@ -2961,7 +3305,7 @@ function init() {
 
   // Keyboard
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeEventModal(); closeCatModal(); closeProfileModal(); }
+    if (e.key === 'Escape') { closeEventModal(); closeCatModal(); closeProfileModal(); closeImportReview(); }
   });
 
   // Theme toggle
@@ -2990,7 +3334,6 @@ function init() {
   renderProfileBtn();
 
   render();
-  initWelcome();
 }
 
 init();

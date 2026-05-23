@@ -10,25 +10,12 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script>
     (function () {
-      var n = localStorage.getItem('pp-user-name');
       var t = localStorage.getItem('pp-theme');
-      if (n) document.documentElement.classList.add('has-user');
       if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
     })();
   </script>
 </head>
 <body>
-
-  <!-- ===== WELCOME SCREEN ===== -->
-  <div id="welcome-screen">
-    <div class="welcome-content">
-      <div class="welcome-heading">
-        Welcome<span id="welcome-name-display"></span><span class="welcome-cursor"></span>
-      </div>
-      <p class="welcome-hint" id="welcome-hint">what's your name?</p>
-    </div>
-    <input type="text" id="welcome-input" maxlength="40" autocomplete="off" spellcheck="false" aria-label="Your name">
-  </div>
 
   <div id="app">
 
@@ -55,7 +42,10 @@
       <div class="sidebar-categories">
         <div class="categories-header">
           <span>Categories</span>
-          <button id="manage-categories-btn" class="icon-btn" title="Manage categories">⚙</button>
+          <div class="categories-header-btns">
+            <button id="add-category-btn" class="icon-btn" title="Add category">+</button>
+            <button id="manage-categories-btn" class="icon-btn" title="Manage categories">⚙</button>
+          </div>
         </div>
         <ul id="category-list"></ul>
       </div>
@@ -142,9 +132,29 @@
             <input type="number" id="event-recurrence-interval" min="1" max="99" value="1" class="recurrence-interval-input">
             <span id="recurrence-unit-label" class="recurrence-label">days</span>
           </div>
+          <div id="recurrence-days-row" class="recurrence-days-row hidden">
+            <span class="recurrence-label">On</span>
+            <div class="recurrence-days">
+              <button type="button" class="rec-day-btn" data-day="0">Su</button>
+              <button type="button" class="rec-day-btn" data-day="1">Mo</button>
+              <button type="button" class="rec-day-btn" data-day="2">Tu</button>
+              <button type="button" class="rec-day-btn" data-day="3">We</button>
+              <button type="button" class="rec-day-btn" data-day="4">Th</button>
+              <button type="button" class="rec-day-btn" data-day="5">Fr</button>
+              <button type="button" class="rec-day-btn" data-day="6">Sa</button>
+            </div>
+          </div>
           <div class="form-group">
             <label>End date (optional)</label>
             <input type="date" id="event-recurrence-end">
+          </div>
+        </div>
+        <div id="edit-scope-row" class="form-group hidden">
+          <label>Apply changes to</label>
+          <div class="edit-scope-options">
+            <label class="edit-scope-label"><input type="radio" name="edit-scope" value="one" checked> This event only</label>
+            <label class="edit-scope-label"><input type="radio" name="edit-scope" value="future"> This and following events</label>
+            <label class="edit-scope-label"><input type="radio" name="edit-scope" value="all"> All events</label>
           </div>
         </div>
         <div class="modal-footer">
@@ -186,6 +196,18 @@
         <button class="modal-close-btn">&#10005;</button>
       </div>
       <div id="profile-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- ===== IMPORT REVIEW MODAL ===== -->
+  <div id="import-review-modal" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content import-review-content">
+      <div class="modal-header">
+        <h3>Review Import</h3>
+        <button class="modal-close-btn">&#10005;</button>
+      </div>
+      <div id="import-review-body"></div>
     </div>
   </div>
 
