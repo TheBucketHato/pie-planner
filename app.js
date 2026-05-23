@@ -16,8 +16,8 @@ function load(key, fallback) {
 function save(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
 
 // THEME
-function loadTheme() { return localStorage.getItem('pp-theme') || 'light'; }
-function saveTheme(t) { localStorage.setItem('pp-theme', t); }
+function loadTheme() { return localStorage.getItem(pk('pp-theme')) || 'light'; }
+function saveTheme(t) { localStorage.setItem(pk('pp-theme'), t); }
 function applyTheme(t) {
   if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
   else document.documentElement.removeAttribute('data-theme');
@@ -193,8 +193,8 @@ const PRESETS = [
   },
 ];
 
-function loadCustomColors() { return load('pp-custom-colors', {}); }
-function saveCustomColors(c) { save('pp-custom-colors', c); }
+function loadCustomColors() { return load(pk('pp-custom-colors'), {}); }
+function saveCustomColors(c) { save(pk('pp-custom-colors'), c); }
 
 function applyCustomColors(colors) {
   for (const prop of ALL_CUSTOM_PROPS) {
@@ -322,41 +322,102 @@ function onOutsideCustomizerClick(e) {
 }
 
 // ===================================================
-//  STATE
+//  PROFILES
 // ===================================================
 
-let events     = load('pp-events', []);
-let categories = load('pp-categories', [
+const DEFAULT_CATEGORIES = [
   { id: 'c1', name: 'Work',     color: '#1a73e8' },
   { id: 'c2', name: 'Social',   color: '#33b679' },
   { id: 'c3', name: 'Meals',    color: '#f6bf26' },
   { id: 'c4', name: 'Personal', color: '#a4bdfc' },
   { id: 'c5', name: 'Health',   color: '#ff887c' },
-]);
-let savedColors = load('pp-colors', [
+];
+const DEFAULT_SAVED_COLORS = [
   '#1a73e8','#33b679','#f6bf26','#a4bdfc','#ff887c',
   '#46d6db','#7986cb','#e67c73','#f09300','#0b8043',
   '#d50000','#8e24aa',
-]);
+];
+const PROFILE_DATA_KEYS = [
+  'pp-events','pp-tasks','pp-mood','pp-sleep','pp-categories','pp-colors',
+  'pp-theme','pp-custom-colors','pp-user-name','pp-analytics-start','pp-analytics-end',
+];
+
+let profiles       = load('pp-profiles', []);
+let activeProfileId = localStorage.getItem('pp-active-profile') || '';
+
+// First-run: create a default profile and migrate any existing unnamespaced data
+(function bootstrapProfiles() {
+  if (profiles.length && activeProfileId && profiles.find(p => p.id === activeProfileId)) return;
+  const id         = 'p-' + Date.now().toString(36);
+  const legacyName = localStorage.getItem('pp-user-name') || '';
+  profiles        = [{ id, name: legacyName || 'My Profile', color: '#1a73e8', createdAt: new Date().toISOString() }];
+  activeProfileId  = id;
+  save('pp-profiles', profiles);
+  localStorage.setItem('pp-active-profile', id);
+  PROFILE_DATA_KEYS.forEach(k => {
+    const v = localStorage.getItem(k);
+    if (v !== null) localStorage.setItem(k + '--' + id, v);
+  });
+})();
+
+// Returns the namespaced localStorage key for the active profile
+function pk(k) { return k + '--' + activeProfileId; }
+
+function saveProfiles() { save('pp-profiles', profiles); }
+
+// ===================================================
+//  STATE
+// ===================================================
+
+let events     = load(pk('pp-events'), []);
+let categories = load(pk('pp-categories'), DEFAULT_CATEGORIES.map(c => ({...c})));
+let savedColors = load(pk('pp-colors'), [...DEFAULT_SAVED_COLORS]);
 
 let view                 = 'month';
 let anchor               = new Date();
 let analyticsSpan        = 'week';   // day | week | month | custom
-let analyticsCustomStart = localStorage.getItem('pp-analytics-start') || '';
-let analyticsCustomEnd   = localStorage.getItem('pp-analytics-end')   || '';
+let analyticsCustomStart = localStorage.getItem(pk('pp-analytics-start')) || '';
+let analyticsCustomEnd   = localStorage.getItem(pk('pp-analytics-end'))   || '';
 let editId               = null;
 let pieCharts            = [];
-let analyticsTab         = 'events'; // 'events' | 'tasks'
+let analyticsTab         = 'events'; // 'events' | 'tasks' | 'mood' | 'sleep'
+let analyticsChartType   = localStorage.getItem('pp-chart-type') || 'pie'; // global pref
+let moodSpan             = 'week';   // 'week' | 'month'
+let sleepSpan            = 'week';   // 'week' | 'month'
 
-let tasks = load('pp-tasks', []).map(t => {
+let moods  = load(pk('pp-mood'),  {}); // { "YYYY-MM-DD": 1-10 }
+let sleeps = load(pk('pp-sleep'), {}); // { "YYYY-MM-DD": hours }
+
+let tasks = load(pk('pp-tasks'), []).map(t => {
   if (!t.status) t.status = t.done ? 'done' : 'todo';
   return t;
 });
 
-function saveEvents()     { save('pp-events', events); }
-function saveCategories() { save('pp-categories', categories); }
-function saveTasks()      { save('pp-tasks', tasks); }
-function saveSavedColors() { save('pp-colors', savedColors); }
+function saveEvents()      { save(pk('pp-events'),     events); }
+function saveMoods()       { save(pk('pp-mood'),       moods); }
+function saveSleeps()      { save(pk('pp-sleep'),      sleeps); }
+function saveCategories()  { save(pk('pp-categories'), categories); }
+function saveTasks()       { save(pk('pp-tasks'),      tasks); }
+function saveSavedColors() { save(pk('pp-colors'),     savedColors); }
+
+// Reload all state variables from the active profile
+function loadProfileState() {
+  events      = load(pk('pp-events'),     []);
+  categories  = load(pk('pp-categories'), DEFAULT_CATEGORIES.map(c => ({...c})));
+  savedColors = load(pk('pp-colors'),     [...DEFAULT_SAVED_COLORS]);
+  moods       = load(pk('pp-mood'),       {});
+  sleeps      = load(pk('pp-sleep'),      {});
+  tasks       = load(pk('pp-tasks'),      []).map(t => {
+    if (!t.status) t.status = t.done ? 'done' : 'todo';
+    return t;
+  });
+  analyticsCustomStart = localStorage.getItem(pk('pp-analytics-start')) || '';
+  analyticsCustomEnd   = localStorage.getItem(pk('pp-analytics-end'))   || '';
+  applyTheme(loadTheme());
+  applyCustomColors(loadCustomColors());
+  const name = localStorage.getItem(pk('pp-user-name'));
+  applyUserName(name || profiles.find(p => p.id === activeProfileId)?.name || '');
+}
 
 // ===================================================
 //  DATE UTILITIES
@@ -511,9 +572,13 @@ function navPrev() {
   if (view === 'tasks') return;
   if (view === 'analytics' && analyticsSpan === 'custom') return;
   const d = new Date(anchor);
-  if (view === 'month')     d.setMonth(d.getMonth() - 1);
-  else if (view === 'week') d.setDate(d.getDate() - 7);
-  else if (view === 'day')  d.setDate(d.getDate() - 1);
+  if      (view === 'month')           d.setMonth(d.getMonth() - 1);
+  else if (view === 'week')            d.setDate(d.getDate() - 7);
+  else if (view === 'day')             d.setDate(d.getDate() - 1);
+  else if (view === 'analytics' && analyticsTab === 'mood'  && moodSpan  === 'month') d.setMonth(d.getMonth() - 1);
+  else if (view === 'analytics' && analyticsTab === 'mood')                           d.setDate(d.getDate() - 7);
+  else if (view === 'analytics' && analyticsTab === 'sleep' && sleepSpan === 'month') d.setMonth(d.getMonth() - 1);
+  else if (view === 'analytics' && analyticsTab === 'sleep')                          d.setDate(d.getDate() - 7);
   else if (analyticsSpan === 'month') d.setMonth(d.getMonth() - 1);
   else if (analyticsSpan === 'week')  d.setDate(d.getDate() - 7);
   else                                d.setDate(d.getDate() - 1);
@@ -525,9 +590,13 @@ function navNext() {
   if (view === 'tasks') return;
   if (view === 'analytics' && analyticsSpan === 'custom') return;
   const d = new Date(anchor);
-  if (view === 'month')     d.setMonth(d.getMonth() + 1);
-  else if (view === 'week') d.setDate(d.getDate() + 7);
-  else if (view === 'day')  d.setDate(d.getDate() + 1);
+  if      (view === 'month')           d.setMonth(d.getMonth() + 1);
+  else if (view === 'week')            d.setDate(d.getDate() + 7);
+  else if (view === 'day')             d.setDate(d.getDate() + 1);
+  else if (view === 'analytics' && analyticsTab === 'mood'  && moodSpan  === 'month') d.setMonth(d.getMonth() + 1);
+  else if (view === 'analytics' && analyticsTab === 'mood')                           d.setDate(d.getDate() + 7);
+  else if (view === 'analytics' && analyticsTab === 'sleep' && sleepSpan === 'month') d.setMonth(d.getMonth() + 1);
+  else if (view === 'analytics' && analyticsTab === 'sleep')                          d.setDate(d.getDate() + 7);
   else if (analyticsSpan === 'month') d.setMonth(d.getMonth() + 1);
   else if (analyticsSpan === 'week')  d.setDate(d.getDate() + 7);
   else                                d.setDate(d.getDate() + 1);
@@ -637,7 +706,7 @@ function renderTaskList() {
       const icon = t.status === 'done' ? '✓' : t.status === 'in-progress' ? '–' : '';
       return `<li class="task-item task-status-${t.status}" data-id="${t.id}">
         <button class="task-check-btn task-check-${t.status}" data-id="${t.id}" title="Cycle status">${icon}</button>
-        <span class="task-title">${t.title}</span>
+        <span class="task-title">${t.title}${t.time ? `<span class="task-item-time">${fmtTime(t.time)}</span>` : ''}</span>
         <span class="task-badge ${cls}">${text}</span>
         <button class="task-delete-btn" data-id="${t.id}" title="Delete">×</button>
       </li>`;
@@ -679,6 +748,7 @@ function showAddTaskForm() {
   li.innerHTML = `
     <input type="text" id="task-add-title" placeholder="Task name" autocomplete="off" maxlength="80">
     <input type="date" id="task-add-due">
+    <input type="time" id="task-add-time" placeholder="Time (optional)">
     <button class="task-add-save" id="task-add-save-btn">Add</button>
   `;
   ul.appendChild(li);
@@ -687,8 +757,9 @@ function showAddTaskForm() {
   function commitTask() {
     const title = document.getElementById('task-add-title').value.trim();
     const due   = document.getElementById('task-add-due').value;
+    const time  = document.getElementById('task-add-time').value;
     if (!title || !due) return;
-    tasks.push({ id: 'tk' + Date.now(), title, due, status: 'todo' });
+    tasks.push({ id: 'tk' + Date.now(), title, due, time: time || '', status: 'todo' });
     saveTasks();
     li.remove();
     renderTaskList();
@@ -700,6 +771,10 @@ function showAddTaskForm() {
     if (e.key === 'Escape') { li.remove(); renderTaskList(); }
   });
   document.getElementById('task-add-due').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { document.getElementById('task-add-time').focus(); }
+    if (e.key === 'Escape') { li.remove(); renderTaskList(); }
+  });
+  document.getElementById('task-add-time').addEventListener('keydown', e => {
     if (e.key === 'Enter') commitTask();
     if (e.key === 'Escape') { li.remove(); renderTaskList(); }
   });
@@ -1238,7 +1313,7 @@ function renderTasksView(body) {
         <button class="task-check-btn task-check-${t.status} tv-check" data-id="${t.id}" title="Cycle status">${icon}</button>
         <div class="tv-task-body">
           <span class="tv-task-title">${t.title}</span>
-          <span class="tv-task-due">Due ${formatDueDate(t.due)}</span>
+          <span class="tv-task-due">Due ${formatDueDate(t.due)}${t.time ? ' at ' + fmtTime(t.time) : ''}</span>
         </div>
         <span class="task-badge ${cls}">${text}</span>
         <button class="task-delete-btn tv-del" data-id="${t.id}" title="Delete">×</button>
@@ -1317,6 +1392,8 @@ function buildTvAddForm(onDone) {
     <div class="tv-form-row">
       <label class="tv-form-label">Due date</label>
       <input type="date" id="tv-new-due" class="tv-new-due" min="${today.toLocaleDateString('sv')}">
+      <label class="tv-form-label tv-form-label-time">Time <span class="tv-optional">(optional)</span></label>
+      <input type="time" id="tv-new-time" class="tv-new-time">
       <div class="tv-form-actions">
         <button class="tv-form-cancel">Cancel</button>
         <button class="tv-form-save">Add Task</button>
@@ -1326,12 +1403,13 @@ function buildTvAddForm(onDone) {
   function commit() {
     const title = form.querySelector('#tv-new-title').value.trim();
     const due   = form.querySelector('#tv-new-due').value;
+    const time  = form.querySelector('#tv-new-time').value;
     if (!title || !due) {
       if (!title) form.querySelector('#tv-new-title').focus();
       else        form.querySelector('#tv-new-due').focus();
       return;
     }
-    tasks.push({ id: 'tk' + Date.now(), title, due, status: 'todo' });
+    tasks.push({ id: 'tk' + Date.now(), title, due, time: time || '', status: 'todo' });
     saveTasks();
     renderTaskList();
     onDone();
@@ -1344,6 +1422,10 @@ function buildTvAddForm(onDone) {
     if (e.key === 'Escape') onDone();
   });
   form.querySelector('#tv-new-due').addEventListener('keydown', e => {
+    if (e.key === 'Enter')  form.querySelector('#tv-new-time').focus();
+    if (e.key === 'Escape') onDone();
+  });
+  form.querySelector('#tv-new-time').addEventListener('keydown', e => {
     if (e.key === 'Enter')  commit();
     if (e.key === 'Escape') onDone();
   });
@@ -1365,6 +1447,373 @@ function formatDueDate(dateStr) {
 // ===================================================
 //  ANALYTICS VIEW
 // ===================================================
+
+// ===================================================
+//  MOOD VIEW
+// ===================================================
+
+function moodColor(n) {
+  if (n <= 2)  return '#ef5350';
+  if (n <= 4)  return '#ffa726';
+  if (n <= 6)  return '#ffee58';
+  if (n <= 8)  return '#9ccc65';
+  return             '#26a69a';
+}
+
+function moodLabel(n) {
+  if (n <= 2)  return 'Rough';
+  if (n <= 4)  return 'Low';
+  if (n <= 6)  return 'Okay';
+  if (n <= 8)  return 'Good';
+  return             'Great';
+}
+
+function renderMoodView(body) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayStr = toDateStr(today);
+
+  // Build date range
+  let startDate, endDate;
+  if (moodSpan === 'month') {
+    startDate = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+    endDate   = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+  } else {
+    startDate = weekStart(anchor);
+    endDate   = addDays(startDate, 6);
+  }
+
+  const days = [];
+  let d = new Date(startDate);
+  while (d <= endDate) { days.push(new Date(d)); d.setDate(d.getDate() + 1); }
+
+  // Stats
+  const loggedDays = days.filter(d => moods[toDateStr(d)] != null);
+  const values     = loggedDays.map(d => moods[toDateStr(d)]);
+  const avg        = values.length ? (values.reduce((a, b) => a + b, 0) / values.length) : null;
+  const best       = values.length ? Math.max(...values) : null;
+  const lowest     = values.length ? Math.min(...values) : null;
+
+  // Streak — consecutive logged days ending today
+  let streak = 0;
+  const streakCheck = new Date(today);
+  while (moods[toDateStr(streakCheck)] != null) {
+    streak++;
+    streakCheck.setDate(streakCheck.getDate() - 1);
+  }
+
+  const todayMood = moods[todayStr];
+  const isInRange = today >= startDate && today <= endDate;
+
+  const moodBtns = Array.from({ length: 10 }, (_, i) => i + 1).map(n =>
+    `<button class="mood-num-btn${todayMood === n ? ' mood-selected' : ''}"
+             data-mood="${n}" style="--mc:${moodColor(n)}">${n}</button>`
+  ).join('');
+
+  const statsHTML = values.length ? `
+    <div class="mood-stats">
+      <div class="mood-stat">
+        <span class="mood-stat-val" style="color:${moodColor(Math.round(avg))}">${avg.toFixed(1)}</span>
+        <span class="mood-stat-lbl">Average</span>
+      </div>
+      <div class="mood-stat">
+        <span class="mood-stat-val" style="color:${moodColor(best)}">${best}</span>
+        <span class="mood-stat-lbl">Best</span>
+      </div>
+      <div class="mood-stat">
+        <span class="mood-stat-val" style="color:${moodColor(lowest)}">${lowest}</span>
+        <span class="mood-stat-lbl">Lowest</span>
+      </div>
+      <div class="mood-stat">
+        <span class="mood-stat-val">${streak}</span>
+        <span class="mood-stat-lbl">Day streak</span>
+      </div>
+    </div>` : '';
+
+  body.innerHTML = `<div class="mood-view">
+    <div class="mood-top-row">
+      <div class="mood-span-row">
+        <button class="range-btn${moodSpan === 'week'  ? ' active' : ''}" data-mspan="week">Week</button>
+        <button class="range-btn${moodSpan === 'month' ? ' active' : ''}" data-mspan="month">Month</button>
+      </div>
+    </div>
+    <div class="mood-logger">
+      <div class="mood-logger-label">How are you feeling today?</div>
+      <div class="mood-num-row">${moodBtns}</div>
+      ${todayMood != null
+        ? `<div class="mood-logged-msg" style="color:${moodColor(todayMood)}">
+             Logged a <strong>${todayMood}</strong> — ${moodLabel(todayMood)}
+           </div>`
+        : '<div class="mood-logged-msg mood-unlogged">Tap a number to log today\'s mood</div>'}
+    </div>
+    ${statsHTML}
+    ${values.length
+      ? `<div class="mood-chart-wrap"><canvas id="mood-canvas"></canvas></div>`
+      : `<div class="analytics-empty">
+           <div class="analytics-empty-icon">😊</div>
+           <p>No moods logged in this period yet.</p>
+         </div>`}
+  </div>`;
+
+  // Mood buttons
+  body.querySelectorAll('.mood-num-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const n = parseInt(btn.dataset.mood);
+      moods[todayStr] = n;
+      saveMoods();
+      renderBody();
+    });
+  });
+
+  // Span switcher
+  body.querySelectorAll('[data-mspan]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      moodSpan = btn.dataset.mspan;
+      renderHeader();
+      renderBody();
+    });
+  });
+
+  // Chart
+  if (values.length) {
+    const isMonth   = moodSpan === 'month';
+    const labels    = days.map(d => isMonth
+      ? String(d.getDate())
+      : DAYS[d.getDay()].slice(0, 3));
+    const chartData = days.map(d => moods[toDateStr(d)] ?? null);
+    const ptColors  = days.map(d => moods[toDateStr(d)] != null ? moodColor(moods[toDateStr(d)]) : 'transparent');
+    const ptRadius  = days.map(d => moods[toDateStr(d)] != null ? (moodSpan === 'month' ? 4 : 7) : 0);
+
+    const ctx = document.getElementById('mood-canvas').getContext('2d');
+    const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+    gradient.addColorStop(0, 'rgba(108,180,238,0.22)');
+    gradient.addColorStop(1, 'rgba(108,180,238,0)');
+
+    pieCharts.push(new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          data: chartData,
+          borderColor: '#6cb4ee',
+          backgroundColor: gradient,
+          pointBackgroundColor: ptColors,
+          pointBorderColor: ptColors,
+          pointRadius: ptRadius,
+          pointHoverRadius: ptRadius.map(r => r + 2),
+          borderWidth: 2.5,
+          tension: 0.35,
+          spanGaps: false,
+          fill: true,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: c => c.parsed.y != null ? ` ${c.parsed.y}/10 — ${moodLabel(c.parsed.y)}` : '',
+            },
+          },
+        },
+        scales: {
+          y: {
+            min: 1, max: 10,
+            ticks: { stepSize: 1, color: '#9aa6b2' },
+            grid: { color: 'rgba(0,0,0,0.05)' },
+          },
+          x: {
+            ticks: {
+              color: '#9aa6b2',
+              maxTicksLimit: isMonth ? 10 : 7,
+              maxRotation: 0,
+            },
+            grid: { display: false },
+          },
+        },
+      },
+    }));
+  }
+}
+
+function sleepColor(h) {
+  if (h <= 4)  return '#ef5350';
+  if (h <= 6)  return '#ffa726';
+  if (h <= 8)  return '#66bb6a';
+  if (h <= 10) return '#42a5f5';
+  return             '#ab47bc';
+}
+
+function sleepLabel(h) {
+  if (h <= 4)  return 'Deprived';
+  if (h <= 6)  return 'Short';
+  if (h <= 8)  return 'Good';
+  if (h <= 10) return 'Long';
+  return             'Oversleeping';
+}
+
+function renderSleepView(body) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayStr = toDateStr(today);
+
+  let startDate, endDate;
+  if (sleepSpan === 'month') {
+    startDate = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+    endDate   = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+  } else {
+    startDate = weekStart(anchor);
+    endDate   = addDays(startDate, 6);
+  }
+
+  const days = [];
+  let d = new Date(startDate);
+  while (d <= endDate) { days.push(new Date(d)); d.setDate(d.getDate() + 1); }
+
+  const loggedDays = days.filter(d => sleeps[toDateStr(d)] != null);
+  const values     = loggedDays.map(d => sleeps[toDateStr(d)]);
+  const avg        = values.length ? (values.reduce((a, b) => a + b, 0) / values.length) : null;
+  const best       = values.length ? Math.max(...values) : null;
+  const lowest     = values.length ? Math.min(...values) : null;
+
+  let streak = 0;
+  const streakCheck = new Date(today);
+  while (sleeps[toDateStr(streakCheck)] != null) {
+    streak++;
+    streakCheck.setDate(streakCheck.getDate() - 1);
+  }
+
+  const todaySleep = sleeps[todayStr];
+  const SLEEP_HOURS = [4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+  const sleepBtns = SLEEP_HOURS.map(h =>
+    `<button class="sleep-hour-btn${todaySleep === h ? ' sleep-selected' : ''}"
+             data-hours="${h}" style="--sc:${sleepColor(h)}">${h}h</button>`
+  ).join('');
+
+  const statsHTML = values.length ? `
+    <div class="mood-stats">
+      <div class="mood-stat">
+        <span class="mood-stat-val" style="color:${sleepColor(Math.round(avg))}">${avg.toFixed(1)}h</span>
+        <span class="mood-stat-lbl">Average</span>
+      </div>
+      <div class="mood-stat">
+        <span class="mood-stat-val" style="color:${sleepColor(best)}">${best}h</span>
+        <span class="mood-stat-lbl">Most</span>
+      </div>
+      <div class="mood-stat">
+        <span class="mood-stat-val" style="color:${sleepColor(lowest)}">${lowest}h</span>
+        <span class="mood-stat-lbl">Least</span>
+      </div>
+      <div class="mood-stat">
+        <span class="mood-stat-val">${streak}</span>
+        <span class="mood-stat-lbl">Day streak</span>
+      </div>
+    </div>` : '';
+
+  body.innerHTML = `<div class="mood-view">
+    <div class="mood-top-row">
+      <div class="mood-span-row">
+        <button class="range-btn${sleepSpan === 'week'  ? ' active' : ''}" data-sspan="week">Week</button>
+        <button class="range-btn${sleepSpan === 'month' ? ' active' : ''}" data-sspan="month">Month</button>
+      </div>
+    </div>
+    <div class="mood-logger">
+      <div class="mood-logger-label">How much did you sleep last night?</div>
+      <div class="mood-num-row sleep-btn-row">${sleepBtns}</div>
+      ${todaySleep != null
+        ? `<div class="mood-logged-msg" style="color:${sleepColor(todaySleep)}">
+             Logged <strong>${todaySleep}h</strong> — ${sleepLabel(todaySleep)}
+           </div>`
+        : '<div class="mood-logged-msg mood-unlogged">Tap a button to log today\'s sleep</div>'}
+    </div>
+    ${statsHTML}
+    ${values.length
+      ? `<div class="mood-chart-wrap"><canvas id="sleep-canvas"></canvas></div>`
+      : `<div class="analytics-empty">
+           <div class="analytics-empty-icon">😴</div>
+           <p>No sleep logged in this period yet.</p>
+         </div>`}
+  </div>`;
+
+  body.querySelectorAll('.sleep-hour-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      sleeps[todayStr] = parseInt(btn.dataset.hours);
+      saveSleeps();
+      renderBody();
+    });
+  });
+
+  body.querySelectorAll('[data-sspan]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      sleepSpan = btn.dataset.sspan;
+      renderHeader();
+      renderBody();
+    });
+  });
+
+  if (values.length) {
+    const isMonth   = sleepSpan === 'month';
+    const labels    = days.map(d => isMonth
+      ? String(d.getDate())
+      : DAYS[d.getDay()].slice(0, 3));
+    const chartData = days.map(d => sleeps[toDateStr(d)] ?? null);
+    const ptColors  = days.map(d => sleeps[toDateStr(d)] != null ? sleepColor(sleeps[toDateStr(d)]) : 'transparent');
+    const ptRadius  = days.map(d => sleeps[toDateStr(d)] != null ? (sleepSpan === 'month' ? 4 : 7) : 0);
+
+    const ctx = document.getElementById('sleep-canvas').getContext('2d');
+    const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+    gradient.addColorStop(0, 'rgba(102,187,106,0.22)');
+    gradient.addColorStop(1, 'rgba(102,187,106,0)');
+
+    pieCharts.push(new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          data: chartData,
+          borderColor: '#66bb6a',
+          backgroundColor: gradient,
+          pointBackgroundColor: ptColors,
+          pointBorderColor: ptColors,
+          pointRadius: ptRadius,
+          pointHoverRadius: ptRadius.map(r => r + 2),
+          borderWidth: 2.5,
+          tension: 0.35,
+          spanGaps: false,
+          fill: true,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: c => c.parsed.y != null ? ` ${c.parsed.y}h — ${sleepLabel(c.parsed.y)}` : '',
+            },
+          },
+        },
+        scales: {
+          y: {
+            min: 3, max: 13,
+            ticks: { stepSize: 1, color: '#9aa6b2', callback: v => v + 'h' },
+            grid: { color: 'rgba(0,0,0,0.05)' },
+          },
+          x: {
+            ticks: {
+              color: '#9aa6b2',
+              maxTicksLimit: isMonth ? 10 : 7,
+              maxRotation: 0,
+            },
+            grid: { display: false },
+          },
+        },
+      },
+    }));
+  }
+}
 
 function makeTaskPieData(taskList) {
   let done = 0, inProgress = 0, todo = 0;
@@ -1478,6 +1927,8 @@ function analyticsTabBar() {
   return `<div class="analytics-tab-row">
     <button class="analytics-tab-btn${analyticsTab === 'events' ? ' active' : ''}" data-tab="events">Events</button>
     <button class="analytics-tab-btn${analyticsTab === 'tasks'  ? ' active' : ''}" data-tab="tasks">Tasks</button>
+    <button class="analytics-tab-btn${analyticsTab === 'mood'   ? ' active' : ''}" data-tab="mood">Mood</button>
+    <button class="analytics-tab-btn${analyticsTab === 'sleep'  ? ' active' : ''}" data-tab="sleep">Sleep</button>
   </div>`;
 }
 
@@ -1487,29 +1938,77 @@ function wireAnalyticsTabs(body) {
   });
 }
 
-function renderAnalytics(body) {
-  if (analyticsTab === 'tasks') { renderAnalyticsTasks(body); return; }
+// ===================================================
+//  EVENTS ANALYTICS — SHARED HELPERS
+// ===================================================
 
-  // Determine date range
-  let startStr, endStr;
-  if (analyticsSpan === 'day') {
-    startStr = endStr = toDateStr(anchor);
-  } else if (analyticsSpan === 'week') {
-    const ws = weekStart(anchor);
-    startStr = toDateStr(ws);
-    endStr   = toDateStr(addDays(ws, 6));
-  } else if (analyticsSpan === 'month') {
-    startStr = toDateStr(new Date(anchor.getFullYear(), anchor.getMonth(), 1));
-    endStr   = toDateStr(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0));
-  } else {
-    startStr = analyticsCustomStart;
-    endStr   = analyticsCustomEnd;
+function analyticsRangeBtns(customRow) {
+  return `
+    <div class="analytics-range-row">
+      ${['day','week','month','custom'].map(r => `
+        <button class="range-btn ${analyticsSpan === r ? 'active' : ''}" data-range="${r}">
+          ${r === 'custom' ? 'Custom' : r.charAt(0).toUpperCase() + r.slice(1)}
+        </button>`).join('')}
+    </div>
+    ${customRow}`;
+}
+
+function chartTypeSelector() {
+  return `<div class="chart-type-row">
+    <button class="chart-type-btn${analyticsChartType==='pie'     ?' active':''}" data-chart="pie">Pie</button>
+    <button class="chart-type-btn${analyticsChartType==='bar'     ?' active':''}" data-chart="bar">Bar</button>
+    <button class="chart-type-btn${analyticsChartType==='heatmap' ?' active':''}" data-chart="heatmap">Heatmap</button>
+  </div>`;
+}
+
+function wireChartTypeBtns(body) {
+  body.querySelectorAll('.chart-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      analyticsChartType = btn.dataset.chart;
+      localStorage.setItem('pp-chart-type', analyticsChartType);
+      renderBody();
+    });
+  });
+}
+
+function wireRangeBtns(body) {
+  body.querySelectorAll('.range-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const r = btn.dataset.range;
+      if (r === 'custom' && !analyticsCustomStart) {
+        analyticsCustomStart = toDateStr(new Date(anchor.getFullYear(), anchor.getMonth(), 1));
+        analyticsCustomEnd   = toDateStr(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0));
+        localStorage.setItem(pk('pp-analytics-start'), analyticsCustomStart);
+        localStorage.setItem(pk('pp-analytics-end'),   analyticsCustomEnd);
+      }
+      analyticsSpan = r;
+      renderHeader();
+      renderBody();
+    });
+  });
+  const startInput = body.querySelector('#analytics-start');
+  const endInput   = body.querySelector('#analytics-end');
+  if (startInput) {
+    startInput.addEventListener('change', () => {
+      analyticsCustomStart = startInput.value;
+      localStorage.setItem(pk('pp-analytics-start'), analyticsCustomStart);
+      renderHeader(); renderBody();
+    });
   }
+  if (endInput) {
+    endInput.addEventListener('change', () => {
+      analyticsCustomEnd = endInput.value;
+      localStorage.setItem(pk('pp-analytics-end'), analyticsCustomEnd);
+      renderHeader(); renderBody();
+    });
+  }
+}
 
-  const validRange = startStr && endStr && startStr <= endStr;
-  const inRange    = validRange ? getEventsInRange(startStr, endStr) : [];
+// ===================================================
+//  EVENTS ANALYTICS — PIE CHART
+// ===================================================
 
-  // Aggregate hours per category
+function renderEventsPie(body, inRange, tabBar, rangeBtns) {
   const catHours = {};
   let uncatHours = 0;
   for (const evt of inRange) {
@@ -1518,7 +2017,6 @@ function renderAnalytics(body) {
     if (evt.categoryId) catHours[evt.categoryId] = (catHours[evt.categoryId] || 0) + dur;
     else uncatHours += dur;
   }
-
   const labels = [], data = [], colors = [];
   for (const cat of categories) {
     if (catHours[cat.id] > 0) {
@@ -1533,6 +2031,204 @@ function renderAnalytics(body) {
     colors.push('#9e9e9e');
   }
   const total = data.reduce((s, v) => s + v, 0);
+  const legendRows = labels.map((lbl, i) => `
+    <div class="legend-item">
+      <span class="legend-swatch" style="background:${colors[i]}"></span>
+      <span class="legend-name">${lbl}</span>
+      <span class="legend-h">${data[i].toFixed(1)}h</span>
+      <span class="legend-pct">${((data[i]/total)*100).toFixed(1)}%</span>
+    </div>`).join('');
+
+  body.innerHTML = `<div class="analytics-view">
+    ${tabBar}${rangeBtns}${chartTypeSelector()}
+    <div class="analytics-content">
+      <div class="chart-wrap"><canvas id="pie-canvas"></canvas></div>
+      <div class="analytics-legend">
+        <div class="legend-total">Total: ${total.toFixed(1)} hours</div>
+        ${legendRows}
+      </div>
+    </div>
+  </div>`;
+
+  const ctx = document.getElementById('pie-canvas').getContext('2d');
+  pieCharts.push(new Chart(ctx, {
+    type: 'pie',
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: '#fff', borderWidth: 2 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => ` ${c.parsed.toFixed(1)}h  (${((c.parsed/total)*100).toFixed(1)}%)` } },
+      },
+    },
+  }));
+}
+
+// ===================================================
+//  EVENTS ANALYTICS — BAR CHART
+// ===================================================
+
+function renderEventsBar(body, startStr, endStr, inRange, tabBar, rangeBtns) {
+  const days = [];
+  const cur  = fromDateStr(startStr), end = fromDateStr(endStr);
+  while (cur <= end) { days.push(toDateStr(new Date(cur))); cur.setDate(cur.getDate() + 1); }
+
+  const dayByCat = {};
+  for (const evt of inRange) {
+    const dur = (toMins(evt.endTime) - toMins(evt.startTime)) / 60;
+    if (dur <= 0) continue;
+    if (!dayByCat[evt.date]) dayByCat[evt.date] = {};
+    const key = evt.categoryId || '_uncat';
+    dayByCat[evt.date][key] = (dayByCat[evt.date][key] || 0) + dur;
+  }
+
+  const datasets = [];
+  for (const cat of categories) {
+    const d = days.map(day => +(dayByCat[day]?.[cat.id] || 0).toFixed(2));
+    if (d.some(v => v > 0)) datasets.push({ label: cat.name, data: d, backgroundColor: cat.color, borderWidth: 0, borderRadius: 3 });
+  }
+  const uncatD = days.map(day => +(dayByCat[day]?.['_uncat'] || 0).toFixed(2));
+  if (uncatD.some(v => v > 0)) datasets.push({ label: 'Uncategorized', data: uncatD, backgroundColor: '#9e9e9e', borderWidth: 0, borderRadius: 3 });
+
+  const dayLabels = days.map(d => {
+    const dt = fromDateStr(d);
+    if (days.length <= 7)  return DAYS[dt.getDay()].slice(0, 3);
+    if (days.length <= 31) return `${SHORT_MONTHS[dt.getMonth()]} ${dt.getDate()}`;
+    return String(dt.getDate());
+  });
+
+  body.innerHTML = `<div class="analytics-view">
+    ${tabBar}${rangeBtns}${chartTypeSelector()}
+    <div class="bar-chart-wrap"><canvas id="bar-canvas"></canvas></div>
+  </div>`;
+
+  const ctx = document.getElementById('bar-canvas').getContext('2d');
+  pieCharts.push(new Chart(ctx, {
+    type: 'bar',
+    data: { labels: dayLabels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { color: 'var(--text-dim)', boxWidth: 12, font: { size: 12 } } },
+        tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y.toFixed(1)}h` } },
+      },
+      scales: {
+        x: { stacked: true, ticks: { color: '#9aa6b2', maxRotation: days.length > 14 ? 45 : 0 }, grid: { display: false } },
+        y: { stacked: true, ticks: { color: '#9aa6b2', callback: v => v + 'h' }, grid: { color: 'rgba(0,0,0,0.05)' } },
+      },
+    },
+  }));
+}
+
+// ===================================================
+//  EVENTS ANALYTICS — HEATMAP
+// ===================================================
+
+function renderEventsHeatmap(body, startStr, endStr, inRange, tabBar, rangeBtns) {
+  const dayTotals = {};
+  for (const evt of inRange) {
+    const dur = (toMins(evt.endTime) - toMins(evt.startTime)) / 60;
+    if (dur <= 0) continue;
+    dayTotals[evt.date] = (dayTotals[evt.date] || 0) + dur;
+  }
+  const maxH = Math.max(...Object.values(dayTotals), 0.1);
+
+  function hmColor(hours) {
+    if (!hours) return 'var(--faint)';
+    const t = hours / maxH;
+    if (t < 0.25) return 'color-mix(in srgb, var(--accent) 22%, var(--faint))';
+    if (t < 0.5)  return 'color-mix(in srgb, var(--accent) 45%, var(--faint))';
+    if (t < 0.75) return 'color-mix(in srgb, var(--accent) 70%, var(--faint))';
+    return 'var(--accent)';
+  }
+
+  // Pad to full Sunday-Saturday weeks
+  const gridStart = fromDateStr(startStr);
+  gridStart.setDate(gridStart.getDate() - gridStart.getDay());
+  const gridEnd = fromDateStr(endStr);
+  gridEnd.setDate(gridEnd.getDate() + (6 - gridEnd.getDay()));
+  const numWeeks = Math.round((gridEnd - gridStart) / (7 * 86400000)) + 1;
+
+  // Month labels (one per column)
+  let monthLabelHTML = '';
+  let lastMonth = -1;
+  for (let w = 0; w < numWeeks; w++) {
+    const d = new Date(gridStart);
+    d.setDate(d.getDate() + w * 7);
+    const m = d.getMonth();
+    const show = m !== lastMonth;
+    if (show) lastMonth = m;
+    monthLabelHTML += `<div class="hm-month-label">${show ? SHORT_MONTHS[m] : ''}</div>`;
+  }
+
+  // Cells (column-major: for each week, Sun→Sat)
+  let cells = '';
+  for (let w = 0; w < numWeeks; w++) {
+    for (let day = 0; day < 7; day++) {
+      const d = new Date(gridStart);
+      d.setDate(d.getDate() + w * 7 + day);
+      const dateStr   = toDateStr(d);
+      const inRange2  = dateStr >= startStr && dateStr <= endStr;
+      const hours     = dayTotals[dateStr] || 0;
+      const bg        = inRange2 ? hmColor(hours) : 'var(--faint)';
+      const dimmed    = inRange2 ? '' : 'hm-cell-out';
+      const tip       = inRange2 && hours ? `${dateStr}: ${hours.toFixed(1)}h` : dateStr;
+      cells += `<div class="hm-cell ${dimmed}" title="${tip}" style="background:${bg}"></div>`;
+    }
+  }
+
+  const legendSwatches = [
+    'var(--faint)',
+    'color-mix(in srgb, var(--accent) 22%, var(--faint))',
+    'color-mix(in srgb, var(--accent) 45%, var(--faint))',
+    'color-mix(in srgb, var(--accent) 70%, var(--faint))',
+    'var(--accent)',
+  ].map(c => `<div class="hm-legend-cell" style="background:${c}"></div>`).join('');
+
+  body.innerHTML = `<div class="analytics-view">
+    ${tabBar}${rangeBtns}${chartTypeSelector()}
+    <div class="heatmap-container">
+      <div class="heatmap-month-row" style="--hm-weeks:${numWeeks}">${monthLabelHTML}</div>
+      <div class="heatmap-body">
+        <div class="heatmap-day-labels">
+          ${DAYS.map((d, i) => `<span>${i % 2 === 1 ? d.slice(0,3) : ''}</span>`).join('')}
+        </div>
+        <div class="heatmap-grid" style="--hm-weeks:${numWeeks}">${cells}</div>
+      </div>
+      <div class="hm-legend">
+        <span class="hm-legend-label">Less</span>
+        ${legendSwatches}
+        <span class="hm-legend-label">More</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ===================================================
+//  ANALYTICS DISPATCH
+// ===================================================
+
+function renderAnalytics(body) {
+  if (analyticsTab === 'tasks') { renderAnalyticsTasks(body); return; }
+  if (analyticsTab === 'mood')  { renderMoodView(body);  return; }
+  if (analyticsTab === 'sleep') { renderSleepView(body); return; }
+
+  // Date range
+  let startStr, endStr;
+  if (analyticsSpan === 'day') {
+    startStr = endStr = toDateStr(anchor);
+  } else if (analyticsSpan === 'week') {
+    const ws = weekStart(anchor);
+    startStr = toDateStr(ws); endStr = toDateStr(addDays(ws, 6));
+  } else if (analyticsSpan === 'month') {
+    startStr = toDateStr(new Date(anchor.getFullYear(), anchor.getMonth(), 1));
+    endStr   = toDateStr(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0));
+  } else {
+    startStr = analyticsCustomStart; endStr = analyticsCustomEnd;
+  }
+
+  const validRange = startStr && endStr && startStr <= endStr;
+  const inRange    = validRange ? getEventsInRange(startStr, endStr) : [];
 
   const customRow = analyticsSpan === 'custom' ? `
     <div class="analytics-custom-row">
@@ -1544,16 +2240,10 @@ function renderAnalytics(body) {
              value="${analyticsCustomEnd}" ${startStr ? `min="${startStr}"` : ''}>
     </div>` : '';
 
-  const rangeBtns = `
-    <div class="analytics-range-row">
-      ${['day','week','month','custom'].map(r => `
-        <button class="range-btn ${analyticsSpan === r ? 'active' : ''}" data-range="${r}">
-          ${r === 'custom' ? 'Custom' : r.charAt(0).toUpperCase() + r.slice(1)}
-        </button>`).join('')}
-    </div>
-    ${customRow}`;
+  const rangeBtns = analyticsRangeBtns(customRow);
+  const tabBar    = analyticsTabBar();
 
-  const showEmpty = !data.length;
+  const hasEvents = inRange.some(e => (toMins(e.endTime) - toMins(e.startTime)) / 60 > 0);
   let emptyMsg = 'No events in this period to analyze.';
   if (analyticsSpan === 'custom' && !validRange) {
     emptyMsg = startStr && endStr && startStr > endStr
@@ -1561,98 +2251,38 @@ function renderAnalytics(body) {
       : 'Choose a start and end date above.';
   }
 
-  if (showEmpty) {
+  // Heatmap renders even when empty (shows grey grid)
+  if (!hasEvents && analyticsChartType !== 'heatmap') {
     body.innerHTML = `<div class="analytics-view">
-      ${analyticsTabBar()}
-      ${rangeBtns}
+      ${tabBar}${rangeBtns}${chartTypeSelector()}
       <div class="analytics-empty">
         <div class="analytics-empty-icon">📊</div>
         <p>${emptyMsg}</p>
         ${validRange || analyticsSpan !== 'custom'
-          ? '<p>Create some events and assign them categories to see your time breakdown here.</p>'
-          : ''}
+          ? '<p>Create some events and assign them categories to see your time breakdown here.</p>' : ''}
       </div>
     </div>`;
-  } else {
-    const legendRows = labels.map((lbl, i) => `
-      <div class="legend-item">
-        <span class="legend-swatch" style="background:${colors[i]}"></span>
-        <span class="legend-name">${lbl}</span>
-        <span class="legend-h">${data[i].toFixed(1)}h</span>
-        <span class="legend-pct">${((data[i]/total)*100).toFixed(1)}%</span>
-      </div>`).join('');
-
-    body.innerHTML = `<div class="analytics-view">
-      ${analyticsTabBar()}
-      ${rangeBtns}
-      <div class="analytics-content">
-        <div class="chart-wrap"><canvas id="pie-canvas"></canvas></div>
-        <div class="analytics-legend">
-          <div class="legend-total">Total: ${total.toFixed(1)} hours</div>
-          ${legendRows}
+  } else if (analyticsChartType === 'heatmap') {
+    if (!validRange) {
+      body.innerHTML = `<div class="analytics-view">
+        ${tabBar}${rangeBtns}${chartTypeSelector()}
+        <div class="analytics-empty">
+          <div class="analytics-empty-icon">📊</div>
+          <p>${emptyMsg}</p>
         </div>
-      </div>
-    </div>`;
-
-    const ctx = document.getElementById('pie-canvas').getContext('2d');
-    pieCharts.push(new Chart(ctx, {
-      type: 'pie',
-      data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: '#fff', borderWidth: 2 }] },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: ctx => {
-                const val = ctx.parsed;
-                return ` ${val.toFixed(1)}h  (${((val/total)*100).toFixed(1)}%)`;
-              },
-            },
-          },
-        },
-      },
-    }));
+      </div>`;
+    } else {
+      renderEventsHeatmap(body, startStr, endStr, inRange, tabBar, rangeBtns);
+    }
+  } else if (analyticsChartType === 'bar') {
+    renderEventsBar(body, startStr, endStr, inRange, tabBar, rangeBtns);
+  } else {
+    renderEventsPie(body, inRange, tabBar, rangeBtns);
   }
 
   wireAnalyticsTabs(body);
-
-  // Range buttons
-  body.querySelectorAll('.range-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const r = btn.dataset.range;
-      if (r === 'custom' && !analyticsCustomStart) {
-        analyticsCustomStart = toDateStr(new Date(anchor.getFullYear(), anchor.getMonth(), 1));
-        analyticsCustomEnd   = toDateStr(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0));
-        localStorage.setItem('pp-analytics-start', analyticsCustomStart);
-        localStorage.setItem('pp-analytics-end',   analyticsCustomEnd);
-      }
-      analyticsSpan = r;
-      renderHeader();
-      renderBody();
-    });
-  });
-
-  // Custom date pickers
-  const startInput = body.querySelector('#analytics-start');
-  const endInput   = body.querySelector('#analytics-end');
-  if (startInput) {
-    startInput.addEventListener('change', () => {
-      analyticsCustomStart = startInput.value;
-      localStorage.setItem('pp-analytics-start', analyticsCustomStart);
-      renderHeader();
-      renderBody();
-    });
-  }
-  if (endInput) {
-    endInput.addEventListener('change', () => {
-      analyticsCustomEnd = endInput.value;
-      localStorage.setItem('pp-analytics-end', analyticsCustomEnd);
-      renderHeader();
-      renderBody();
-    });
-  }
+  wireChartTypeBtns(body);
+  wireRangeBtns(body);
 }
 
 // ===================================================
@@ -1924,8 +2554,310 @@ function applyUserName(name) {
   if (logoText) logoText.textContent = `${name}'s Planner`;
 }
 
+// ===================================================
+//  PROFILE MANAGEMENT
+// ===================================================
+
+function switchProfile(id) {
+  if (id === activeProfileId) { closeProfileModal(); return; }
+  activeProfileId = id;
+  localStorage.setItem('pp-active-profile', id);
+  loadProfileState();
+  render();
+  closeProfileModal();
+  renderProfileBtn();
+}
+
+function createProfile(name, color) {
+  const id = 'p-' + Date.now().toString(36);
+  profiles.push({ id, name: name || 'New Profile', color, createdAt: new Date().toISOString() });
+  saveProfiles();
+  switchProfile(id);
+}
+
+function deleteProfile(id) {
+  if (profiles.length <= 1) { alert('You need at least one profile.'); return; }
+  const name = profiles.find(p => p.id === id)?.name || 'this profile';
+  if (!confirm(`Delete "${name}"? All data in this profile will be permanently removed.`)) return;
+  PROFILE_DATA_KEYS.forEach(k => localStorage.removeItem(k + '--' + id));
+  profiles = profiles.filter(p => p.id !== id);
+  saveProfiles();
+  if (activeProfileId === id) switchProfile(profiles[0].id);
+  else renderProfileModal();
+}
+
+function exportProfile() {
+  const prof = profiles.find(p => p.id === activeProfileId);
+  const data = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    profile: prof,
+    events, tasks, moods, sleeps, categories, savedColors,
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = `pie-planner-${(prof?.name || 'profile').toLowerCase().replace(/\s+/g, '-')}-${new Date().toLocaleDateString('sv')}.json`;
+  a.click();
+}
+
+function importProfile(file) {
+  const reader = new FileReader();
+  const isICS  = file.name.toLowerCase().endsWith('.ics');
+  reader.onload = e => isICS ? importICS(e.target.result) : importJSON(e.target.result);
+  reader.readAsText(file);
+}
+
+function importJSON(text) {
+  try {
+    const data = JSON.parse(text);
+    if (!Array.isArray(data.events) || !Array.isArray(data.tasks)) throw new Error();
+    const id    = 'p-' + Date.now().toString(36);
+    const name  = data.profile?.name  || 'Imported';
+    const color = data.profile?.color || '#1a73e8';
+    profiles.push({ id, name, color, createdAt: new Date().toISOString() });
+    saveProfiles();
+    save('pp-events--'     + id, data.events     || []);
+    save('pp-tasks--'      + id, data.tasks       || []);
+    save('pp-mood--'       + id, data.moods       || {});
+    save('pp-sleep--'      + id, data.sleeps      || {});
+    save('pp-categories--' + id, data.categories  || DEFAULT_CATEGORIES.map(c => ({...c})));
+    save('pp-colors--'     + id, data.savedColors || [...DEFAULT_SAVED_COLORS]);
+    if (name) localStorage.setItem('pp-user-name--' + id, name);
+    switchProfile(id);
+  } catch { alert('Invalid file — make sure you select a Pie Planner export.'); }
+}
+
+function importICS(text) {
+  try {
+    const imported = parseICS(text);
+    if (!imported.length) { alert('No events found in this calendar file.'); return; }
+    events.push(...imported);
+    saveEvents();
+    closeProfileModal();
+    render();
+    showToast(`Imported ${imported.length} event${imported.length !== 1 ? 's' : ''} into this profile.`);
+  } catch { alert('Could not read the calendar file. Make sure it is a valid .ics file.'); }
+}
+
+// ===================================================
+//  ICS PARSER
+// ===================================================
+
+function parseICS(text) {
+  // Normalize line endings then unfold continuation lines (RFC 5545 §3.1)
+  const lines = [];
+  for (const raw of text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')) {
+    if ((raw.startsWith(' ') || raw.startsWith('\t')) && lines.length) {
+      lines[lines.length - 1] += raw.slice(1);
+    } else {
+      lines.push(raw);
+    }
+  }
+
+  const result = [];
+  let inEvent = false;
+  let cur     = {};
+
+  for (const line of lines) {
+    if (line === 'BEGIN:VEVENT') { inEvent = true; cur = {}; continue; }
+    if (line === 'END:VEVENT')   { inEvent = false; result.push(cur); continue; }
+    if (!inEvent) continue;
+
+    const ci = line.indexOf(':');
+    if (ci === -1) continue;
+    const rawKey = line.slice(0, ci);
+    const val    = line.slice(ci + 1);
+    const si     = rawKey.indexOf(';');
+    const name   = si === -1 ? rawKey : rawKey.slice(0, si);
+    const params = si === -1 ? '' : rawKey.slice(si + 1);
+    cur[name]    = { val, params };
+  }
+
+  return result.map(raw => {
+    const dtStart = raw['DTSTART'];
+    if (!dtStart) return null;
+
+    const start = parseICSDateTime(dtStart.val, dtStart.params);
+    const dtEnd = raw['DTEND'];
+    const end   = dtEnd ? parseICSDateTime(dtEnd.val, dtEnd.params) : null;
+
+    const startTime = start.timeStr;
+    const endTime   = end?.timeStr && end.timeStr !== startTime
+      ? end.timeStr
+      : icsAddHour(startTime);
+
+    const title = (raw['SUMMARY']?.val || 'Untitled').replace(/\\,/g, ',').replace(/\\n/g, ' ').trim();
+    const desc  = (raw['DESCRIPTION']?.val || '').replace(/\\n/g, '\n').replace(/\\,/g, ',').trim();
+
+    const recurrence = raw['RRULE']
+      ? parseICSRRule(raw['RRULE'].val)
+      : { type: 'none', interval: 1, endDate: '' };
+
+    return { id: uid(), title, date: start.dateStr, startTime, endTime, description: desc, categoryId: '', recurrence };
+  }).filter(Boolean);
+}
+
+function parseICSDateTime(val, params) {
+  const clean   = val.split('Z')[0]; // strip trailing Z before slicing
+  const isUTC   = val.endsWith('Z');
+  const dateOnly = (params && params.includes('VALUE=DATE')) || val.length === 8;
+
+  if (dateOnly) {
+    const y = val.slice(0, 4), m = val.slice(4, 6), d = val.slice(6, 8);
+    return { dateStr: `${y}-${m}-${d}`, timeStr: '09:00', allDay: true };
+  }
+
+  const y = clean.slice(0, 4), mo = clean.slice(4, 6), d = clean.slice(6, 8);
+  const h = clean.slice(9, 11), mn = clean.slice(11, 13);
+
+  if (isUTC) {
+    const local = new Date(`${y}-${mo}-${d}T${h}:${mn}:00Z`);
+    const lh    = String(local.getHours()).padStart(2, '0');
+    const lm    = String(local.getMinutes()).padStart(2, '0');
+    return { dateStr: toDateStr(local), timeStr: `${lh}:${lm}`, allDay: false };
+  }
+
+  return { dateStr: `${y}-${mo}-${d}`, timeStr: `${h}:${mn}`, allDay: false };
+}
+
+function parseICSRRule(rrule) {
+  const parts = Object.fromEntries(rrule.split(';').map(p => p.split('=')));
+  const freqMap = { DAILY: 'daily', WEEKLY: 'weekly', MONTHLY: 'monthly', YEARLY: 'yearly' };
+  const type     = freqMap[parts.FREQ] || 'none';
+  const interval = parseInt(parts.INTERVAL || '1', 10);
+  let endDate = '';
+  if (parts.UNTIL) {
+    const u = parts.UNTIL.replace(/T.*$/, '');
+    endDate = `${u.slice(0, 4)}-${u.slice(4, 6)}-${u.slice(6, 8)}`;
+  }
+  return { type, interval, endDate };
+}
+
+function icsAddHour(timeStr) {
+  const [h, m] = timeStr.split(':').map(Number);
+  return `${String(Math.min(23, h + 1)).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+// ===================================================
+//  TOAST
+// ===================================================
+
+function showToast(msg) {
+  let toast = document.getElementById('app-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'app-toast';
+    toast.className = 'app-toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.classList.add('toast-visible');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => toast.classList.remove('toast-visible'), 3200);
+}
+
+// ===================================================
+//  PROFILE UI
+// ===================================================
+
+function profileColor(p) { return p?.color || '#1a73e8'; }
+function profileInitial(p) { return (p?.name || '?')[0].toUpperCase(); }
+
+function renderProfileBtn() {
+  const btn = document.getElementById('profile-btn');
+  if (!btn) return;
+  const prof = profiles.find(p => p.id === activeProfileId);
+  btn.style.background = profileColor(prof);
+  btn.textContent = profileInitial(prof);
+  btn.title = prof?.name || 'Profile';
+}
+
+function openProfileModal() {
+  document.getElementById('profile-modal').classList.remove('hidden');
+  renderProfileModal();
+}
+
+function closeProfileModal() {
+  document.getElementById('profile-modal').classList.add('hidden');
+}
+
+function renderProfileModal() {
+  const body = document.getElementById('profile-modal-body');
+
+  const listHTML = profiles.map(p => {
+    const active = p.id === activeProfileId;
+    return `<div class="pm-profile-item ${active ? 'pm-active' : ''}" data-id="${p.id}">
+      <div class="pm-avatar" style="background:${profileColor(p)}">${profileInitial(p)}</div>
+      <div class="pm-info">
+        <span class="pm-name">${p.name}</span>
+        ${active ? '<span class="pm-active-badge">Active</span>' : ''}
+      </div>
+      <div class="pm-actions">
+        ${!active ? `<button class="pm-switch-btn" data-id="${p.id}">Switch</button>` : ''}
+        ${profiles.length > 1 ? `<button class="pm-delete-btn" data-id="${p.id}" title="Delete profile">×</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  body.innerHTML = `
+    <div class="pm-list">${listHTML}</div>
+    <div class="pm-new-area" id="pm-new-area">
+      <button class="pm-new-btn" id="pm-new-btn">+ New Profile</button>
+    </div>
+    <div class="pm-data-row">
+      <button class="pm-data-btn" id="pm-export-btn">Export Data</button>
+      <label class="pm-data-btn pm-import-label">
+        Import Data
+        <input type="file" id="pm-import-input" accept=".json,.ics">
+      </label>
+    </div>`;
+
+  // Switch
+  body.querySelectorAll('.pm-switch-btn').forEach(btn =>
+    btn.addEventListener('click', () => switchProfile(btn.dataset.id))
+  );
+  // Delete
+  body.querySelectorAll('.pm-delete-btn').forEach(btn =>
+    btn.addEventListener('click', () => deleteProfile(btn.dataset.id))
+  );
+  // Export
+  body.querySelector('#pm-export-btn').addEventListener('click', exportProfile);
+  // Import
+  body.querySelector('#pm-import-input').addEventListener('change', e => {
+    if (e.target.files[0]) importProfile(e.target.files[0]);
+  });
+  // New profile form
+  body.querySelector('#pm-new-btn').addEventListener('click', () => {
+    const area = document.getElementById('pm-new-area');
+    area.innerHTML = `
+      <div class="pm-create-form">
+        <input type="text" id="pm-new-name" class="pm-new-name" placeholder="Profile name" maxlength="40" autocomplete="off">
+        <input type="color" id="pm-new-color" class="pm-new-color" value="#1a73e8" title="Pick avatar color">
+        <div class="pm-create-actions">
+          <button class="pm-create-cancel">Cancel</button>
+          <button class="pm-create-save">Create</button>
+        </div>
+      </div>`;
+    document.getElementById('pm-new-name').focus();
+
+    const doCreate = () => {
+      const name  = document.getElementById('pm-new-name').value.trim();
+      const color = document.getElementById('pm-new-color').value;
+      if (!name) { document.getElementById('pm-new-name').focus(); return; }
+      createProfile(name, color);
+    };
+    area.querySelector('.pm-create-save').addEventListener('click', doCreate);
+    area.querySelector('.pm-create-cancel').addEventListener('click', () => renderProfileModal());
+    document.getElementById('pm-new-name').addEventListener('keydown', e => {
+      if (e.key === 'Enter') doCreate();
+      if (e.key === 'Escape') renderProfileModal();
+    });
+  });
+}
+
 function initWelcome() {
-  const savedName = localStorage.getItem('pp-user-name');
+  const savedName = localStorage.getItem(pk('pp-user-name'));
   if (savedName) {
     applyUserName(savedName);
     return;
@@ -1950,7 +2882,9 @@ function initWelcome() {
   const submit = () => {
     const name = input.value.trim();
     if (!name) return;
-    localStorage.setItem('pp-user-name', name);
+    localStorage.setItem(pk('pp-user-name'), name);
+    const prof = profiles.find(p => p.id === activeProfileId);
+    if (prof && prof.name === 'My Profile') { prof.name = name; saveProfiles(); }
     screen.classList.add('exiting');
     screen.addEventListener('animationend', () => {
       screen.remove();
@@ -2027,7 +2961,7 @@ function init() {
 
   // Keyboard
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeEventModal(); closeCatModal(); }
+    if (e.key === 'Escape') { closeEventModal(); closeCatModal(); closeProfileModal(); }
   });
 
   // Theme toggle
@@ -2048,6 +2982,12 @@ function init() {
     e.stopPropagation();
     showColorCustomizer(e.currentTarget);
   });
+
+  // Profile button
+  document.getElementById('profile-btn').addEventListener('click', openProfileModal);
+  document.querySelector('#profile-modal .modal-overlay').addEventListener('click', closeProfileModal);
+  document.querySelector('#profile-modal .modal-close-btn').addEventListener('click', closeProfileModal);
+  renderProfileBtn();
 
   render();
   initWelcome();
