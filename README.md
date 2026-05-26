@@ -1,5 +1,7 @@
 # Pie Planner
 
+   | Try it at pieplanner.netlify.app 
+   
 A tiny web app to plan your day visually using pie-chart time slices.
 
 ## Features
